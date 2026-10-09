@@ -137,6 +137,14 @@ def _apply_scan_result(
         outbox.enqueue(
             db,
             organization_id=org_id,
+            event_type="document_version.extract",
+            aggregate_type="document_version",
+            aggregate_id=version.id,
+            payload={"document_id": str(doc.id)},
+        )
+        outbox.enqueue(
+            db,
+            organization_id=org_id,
             event_type="document.available",
             aggregate_type="document",
             aggregate_id=doc.id,
@@ -304,7 +312,21 @@ def handle_document_quarantined(db: Session, event: OutboxEvent, ctx: WorkerCont
     db.commit()
 
 
+def handle_delete_objects(db: Session, event: OutboxEvent, ctx: WorkerContext) -> None:
+    from app.modules.governance.service import handle_delete_objects as run
+
+    run(db, event.payload, get_storage_provider)
+
+
+def handle_extract(db: Session, event: OutboxEvent, ctx: WorkerContext) -> None:
+    from app.modules.processing.service import process_version
+
+    process_version(db, event.aggregate_id, ctx.settings)
+
+
 HANDLERS: dict[str, Handler] = {
+    "document_version.extract": handle_extract,
+    "storage.delete_objects": handle_delete_objects,
     "document_version.uploaded": handle_version_uploaded,
     "share.created": handle_share_created,
     "share.revoked": handle_share_revoked,

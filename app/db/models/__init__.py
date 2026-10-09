@@ -1,6 +1,7 @@
 """Import every model so Base.metadata is complete for Alembic and tests."""
 
 from app.db.models.access import PermissionGrant, ShareGrant, ShareRecipient
+from app.db.models.governance import LegalHold, LegalHoldItem, RetentionPolicy
 from app.db.models.identity import Group, GroupMembership, Membership, Organization, User
 from app.db.models.platform import (
     AuditEvent,
@@ -10,16 +11,23 @@ from app.db.models.platform import (
     ProcessedEvent,
     RecentDocument,
 )
+from app.db.models.processing import DocumentDerivative, DocumentText, MetadataDefinition
 from app.db.models.tree import Document, DocumentVersion, Folder, StorageLocation
 from app.db.models.uploads import QuotaLedgerEntry, UploadSession
 
 __all__ = [
     "AuditEvent",
     "Document",
+    "DocumentDerivative",
+    "DocumentText",
+    "MetadataDefinition",
     "DocumentStar",
     "DocumentVersion",
     "Folder",
     "Group",
+    "LegalHold",
+    "LegalHoldItem",
+    "RetentionPolicy",
     "GroupMembership",
     "Membership",
     "Notification",

@@ -161,14 +161,16 @@ def cancel_upload(session_id: uuid.UUID, db: DbSession, authz: Authz) -> Respons
 )
 def redeem_download(token: str, request: Request, db: DbSession) -> StreamingResponse:
     rate_limit("download_redeem", sensitive=True)(request)
-    version, location, disposition, name = downloads.redeem_ticket(db, token)
-    size, content_type = version.size_bytes, version.content_type
-    stream = downloads.open_stream(version, location)
+    servable = downloads.redeem_ticket(db, token)
+    size, content_type = servable.size, servable.content_type
+    stream = downloads.open_stream(servable)
     db.close()  # release the connection before streaming
-    inline = disposition == "inline"
+    inline = servable.disposition == "inline"
     origins = " ".join(get_settings().cors_origins) or "'none'"
     headers = {
-        "Content-Disposition": downloads.content_disposition(disposition, name),
+        "Content-Disposition": downloads.content_disposition(
+            servable.disposition, servable.filename
+        ),
         "Content-Length": str(size),
         "Cache-Control": "private, no-store",
         "X-Content-Type-Options": "nosniff",

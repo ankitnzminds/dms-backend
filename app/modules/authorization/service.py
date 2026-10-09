@@ -37,7 +37,14 @@ from app.db.enums import (
     ResourceType,
     SubjectType,
 )
-from app.db.models import Document, Folder, PermissionGrant, ShareGrant, ShareRecipient
+from app.db.models import (
+    Document,
+    Folder,
+    Organization,
+    PermissionGrant,
+    ShareGrant,
+    ShareRecipient,
+)
 from app.modules.audit import service as audit
 from app.modules.authorization.actions import ALL_ACTIONS, OWNER_ACTIONS, expand_actions
 from app.modules.identity.principal import Principal
@@ -72,6 +79,19 @@ class AuthorizationService:
     def __init__(self, db: Session, principal: Principal) -> None:
         self.db = db
         self.principal = principal
+        self._share_blocked: frozenset[str] | None = None
+
+    def share_blocked_classifications(self) -> frozenset[str]:
+        """Classifications that shares cannot grant access to (organization DLP setting)."""
+        if self._share_blocked is None:
+            settings = self.db.scalar(
+                select(Organization.settings).where(
+                    Organization.id == self.principal.organization_id
+                )
+            )
+            value = (settings or {}).get("share_blocked_classifications", ["restricted"])
+            self._share_blocked = frozenset(value)
+        return self._share_blocked
 
     # ------------------------------------------------------------------ chains
     def folder_chains(
@@ -211,14 +231,19 @@ class AuthorizationService:
         for rtype, rid, actions in share_rows:
             (folder_share if rtype == ResourceType.FOLDER.value else doc_share)[rid].update(actions)
 
-        def from_folder_chain(start: uuid.UUID, extra_depth: int) -> set[str]:
+        blocked_classes = self.share_blocked_classifications()
+
+        def from_folder_chain(
+            start: uuid.UUID, extra_depth: int, include_shares: bool = True
+        ) -> set[str]:
             acc: set[str] = set()
             for fid, depth in chains.get(start, []):
                 effective_depth = depth + extra_depth
                 for g in folder_perm.get(fid, ()):
                     if effective_depth == 0 or g.inherit:
                         acc.update(g.actions)
-                acc.update(folder_share.get(fid, ()))  # folder shares cover the subtree
+                if include_shares:
+                    acc.update(folder_share.get(fid, ()))  # folder shares cover the subtree
                 if fid in owned_folders:
                     acc.update(OWNER_ACTIONS)
             return acc
@@ -227,10 +252,12 @@ class AuthorizationService:
             folder_result[fid] = expand_actions(from_folder_chain(fid, 0))
 
         for doc in documents:
-            acc = from_folder_chain(doc.folder_id, 1)
+            shared_ok = doc.classification not in blocked_classes
+            acc = from_folder_chain(doc.folder_id, 1, include_shares=shared_ok)
             for g in doc_perm.get(doc.id, ()):
                 acc.update(g.actions)
-            acc.update(doc_share.get(doc.id, ()))
+            if shared_ok:
+                acc.update(doc_share.get(doc.id, ()))
             if doc.owner_id == p.user_id:
                 acc.update(OWNER_ACTIONS)
             effective = expand_actions(acc)

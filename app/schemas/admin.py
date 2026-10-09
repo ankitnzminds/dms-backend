@@ -171,6 +171,9 @@ class UploadFinalizeOut(ApiModel):
 class DownloadUrlRequest(ApiModel):
     version_number: int | None = Field(None, ge=1)
     inline: bool = False
+    variant: Literal["original", "thumbnail"] = Field(
+        "original", description="'thumbnail' returns a generated image preview (requires preview)."
+    )
 
 
 class DownloadUrlOut(ApiModel):

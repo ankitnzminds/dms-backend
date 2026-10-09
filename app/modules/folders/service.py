@@ -328,6 +328,17 @@ def delete_folder(db: Session, authz: AuthorizationService, folder_id: uuid.UUID
         authz.deny("folder", folder.id, Action.DELETE, "descendant_not_deletable")
         raise ForbiddenError("You do not have permission to delete everything inside this folder.")
 
+    from app.modules.governance.service import assert_deletable
+
+    subtree_rows = list(
+        db.scalars(
+            select(Folder).where(
+                Folder.id.in_(subtree), Folder.organization_id == p.organization_id
+            )
+        )
+    )
+    assert_deletable(db, p.organization_id, documents=docs, folders=subtree_rows)
+
     batch = uuid.uuid4()
     now = datetime.now(UTC)
     path = plain_path(db, p.organization_id, folder.id)

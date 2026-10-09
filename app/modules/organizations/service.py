@@ -47,6 +47,10 @@ DEFAULT_ORG_SETTINGS: dict[str, Any] = {
     # Upper bound for share lifetimes; shares without expiry are rejected when set to a number.
     "max_share_days": 365,
     "require_share_expiry": False,
+    # Trashed items are permanently deleted after this many days (None = keep until purged).
+    "trash_retention_days": 30,
+    # Documents with these classifications cannot be reached through shares (DLP).
+    "share_blocked_classifications": ["restricted"],
 }
 _SETTING_VALIDATORS = {
     "mask_shared_breadcrumbs": lambda v: isinstance(v, bool),
@@ -54,6 +58,13 @@ _SETTING_VALIDATORS = {
         v is None or (isinstance(v, int) and not isinstance(v, bool) and 1 <= v <= 3650)
     ),
     "require_share_expiry": lambda v: isinstance(v, bool),
+    "trash_retention_days": lambda v: (
+        v is None or (isinstance(v, int) and not isinstance(v, bool) and 1 <= v <= 3650)
+    ),
+    "share_blocked_classifications": lambda v: (
+        isinstance(v, list)
+        and all(x in {"public", "internal", "confidential", "restricted"} for x in v)
+    ),
 }
 
 

@@ -31,6 +31,10 @@ def search(
     db: DbSession,
     authz: Authz,
     q: str = Query(min_length=1, max_length=200),
+    scope: Literal["all", "name", "content"] = "all",
+    meta: list[str] = Query(
+        default_factory=list, max_length=5, description="key:value metadata filters"
+    ),
     folder_id: uuid.UUID | None = None,
     kind: Literal["folder", "document"] | None = None,
     owner_id: uuid.UUID | None = None,
@@ -44,6 +48,8 @@ def search(
         db,
         authz,
         q=q,
+        scope=scope,
+        meta=meta,
         folder_id=folder_id,
         kind=kind,
         owner_id=owner_id,

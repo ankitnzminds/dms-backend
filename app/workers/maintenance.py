@@ -62,6 +62,10 @@ def run_maintenance(factory: sessionmaker[Session]) -> dict[str, int]:
         summary["expired_upload_sessions"] = expire_stale_sessions(db)
     with factory() as db:
         summary["expired_shares_recorded"] = record_expired_shares(db)
+    from app.modules.governance.service import purge_expired_trash
+
+    with factory() as db:
+        summary.update({f"trash_{k}": v for k, v in purge_expired_trash(db).items()})
     if any(summary.values()):
         log.info("maintenance_ran", extra=summary)
     return summary

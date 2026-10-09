@@ -124,6 +124,11 @@ def create_share(
         doc = authz.require_document(resource_id, Action.SHARE)
         if doc.status != DocumentStatus.AVAILABLE.value:
             raise ConflictError("Only available documents can be shared.", code="not_available")
+        if doc.classification in authz.share_blocked_classifications():
+            raise ConflictError(
+                f"Documents classified '{doc.classification}' cannot be shared.",
+                code="policy_blocked",
+            )
         held = authz.document_actions([doc])[doc.id]
         name, path = doc.name, f"{plain_path(db, p.organization_id, doc.folder_id)}/{doc.name}"
         allowed_pool = SHAREABLE_ACTIONS - {Action.CREATE_CHILD.value}

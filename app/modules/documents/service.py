@@ -166,7 +166,9 @@ def update_document(
         new_folder = target.id
     if metadata is not None:
         authz.require_document(doc.id, Action.EDIT_METADATA)
-        doc.custom_metadata = _validate_metadata(metadata)
+        from app.modules.metadata.service import validate_document_metadata
+
+        doc.custom_metadata = validate_document_metadata(db, p.organization_id, metadata)
     if classification is not None:
         authz.require_document(doc.id, Action.MANAGE_ACCESS)  # classification is an access control
         if classification not in CLASSIFICATIONS:
@@ -210,6 +212,9 @@ def update_document(
 def delete_document(db: Session, authz: AuthorizationService, document_id: uuid.UUID) -> None:
     p = authz.principal
     doc = authz.require_document(document_id, Action.DELETE)
+    from app.modules.governance.service import assert_deletable
+
+    assert_deletable(db, p.organization_id, documents=[doc], folders=[])
     now = datetime.now(UTC)
     doc.deleted_at, doc.deleted_by, doc.delete_batch_id = now, p.user_id, uuid.uuid4()
     audit.record(
@@ -622,3 +627,29 @@ __all__ = [
     "update_document",
     "version_out",
 ]
+
+
+def processing_status(db: Session, authz: AuthorizationService, document_id: uuid.UUID):  # noqa: ANN201
+    from app.db.models import DocumentDerivative, DocumentText
+    from app.schemas.metadata import ProcessingStatusOut
+
+    doc = authz.require_document(document_id, Action.VIEW)
+    if doc.current_version_id is None:
+        return ProcessingStatusOut(version_number=None)
+    version = db.get(DocumentVersion, doc.current_version_id)
+    text_row = db.get(DocumentText, doc.current_version_id)
+    has_thumb = (
+        db.scalar(
+            select(DocumentDerivative.id).where(
+                DocumentDerivative.version_id == doc.current_version_id
+            )
+        )
+        is not None
+    )
+    return ProcessingStatusOut(
+        version_number=version.version_number if version else None,
+        text_status=text_row.status if text_row else None,
+        text_characters=text_row.char_count if text_row else 0,
+        text_truncated=text_row.truncated if text_row else False,
+        has_thumbnail=has_thumb,
+    )

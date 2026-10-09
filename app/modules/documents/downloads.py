@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import re
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from urllib.parse import quote
 
@@ -57,6 +58,16 @@ PREVIEWABLE_TYPES = frozenset(
 )
 
 
+@dataclass(frozen=True)
+class Servable:
+    location: StorageLocation
+    object_key: str
+    size: int
+    content_type: str
+    disposition: str
+    filename: str
+
+
 def _signing_key() -> str:
     s = get_settings()
     secret = s.download_signing_secret or s.local_jwt_secret
@@ -66,7 +77,11 @@ def _signing_key() -> str:
 
 
 def issue_ticket(
-    principal: Principal, document_id: uuid.UUID, version_id: uuid.UUID, disposition: str
+    principal: Principal,
+    document_id: uuid.UUID,
+    version_id: uuid.UUID,
+    disposition: str,
+    variant: str = "original",
 ) -> tuple[str, datetime]:
     ttl = get_settings().download_url_ttl_seconds
     expires = datetime.now(UTC) + timedelta(seconds=ttl)
@@ -78,6 +93,7 @@ def issue_ticket(
             "doc": str(document_id),
             "ver": str(version_id),
             "disp": disposition,
+            "var": variant,
             "jti": uuid.uuid4().hex,
             "exp": int(expires.timestamp()),
         },
@@ -108,17 +124,27 @@ def create_download_url(
     *,
     version_number: int | None,
     inline: bool,
+    variant: str = "original",
 ) -> tuple[str, datetime]:
     """Authorize first; only then mint a ticket."""
     p = authz.principal
+    thumbnail = variant == "thumbnail"
+    inline = inline or thumbnail
     action = Action.PREVIEW if inline else Action.DOWNLOAD
     doc = authz.require_document(document_id, action)
     version = _servable_version(db, doc.organization_id, doc, version_number)
-    if inline and version.content_type not in PREVIEWABLE_TYPES:
+    if thumbnail:
+        from app.modules.processing.service import derivative_for
+
+        if derivative_for(db, version.id) is None:
+            raise NotFoundError("No thumbnail is available for this document.")
+    if inline and not thumbnail and version.content_type not in PREVIEWABLE_TYPES:
         raise ConflictError(
             "This file type cannot be previewed; download it instead.", code="not_previewable"
         )
-    token, expires = issue_ticket(p, doc.id, version.id, "inline" if inline else "attachment")
+    token, expires = issue_ticket(
+        p, doc.id, version.id, "inline" if inline else "attachment", variant
+    )
     DOWNLOAD_URLS.inc()
     audit.record(
         db,
@@ -198,8 +224,8 @@ def _safe_filename(name: str) -> str:
     return cleaned[:150]
 
 
-def redeem_ticket(db: Session, token: str) -> tuple[DocumentVersion, StorageLocation, str, str]:
-    """Validate + re-authorize. Returns (version, location, disposition, document_name)."""
+def redeem_ticket(db: Session, token: str) -> Servable:
+    """Validate + re-authorize, then describe exactly which stored object may be streamed."""
     claims = _decode(token)
     principal = _principal_from_claims(db, claims)
     authz = AuthorizationService(db, principal)
@@ -221,6 +247,28 @@ def redeem_ticket(db: Session, token: str) -> tuple[DocumentVersion, StorageLoca
     location = db.get(StorageLocation, version.storage_location_id)
     if location is None or location.organization_id != principal.organization_id:
         raise NotFoundError("Storage location not found.")
+    servable = Servable(
+        location=location,
+        object_key=version.object_key,
+        size=version.size_bytes,
+        content_type=version.content_type,
+        disposition="inline" if inline else "attachment",
+        filename=doc.name,
+    )
+    if claims.get("var") == "thumbnail":
+        from app.modules.processing.service import derivative_for
+
+        derivative = derivative_for(db, version.id)
+        if derivative is None:
+            raise NotFoundError("No thumbnail is available for this document.")
+        servable = Servable(
+            location=location,
+            object_key=derivative.object_key,
+            size=derivative.size_bytes,
+            content_type=derivative.content_type,
+            disposition="inline",
+            filename="thumbnail.png",
+        )
     audit.record(
         db,
         organization_id=principal.organization_id,
@@ -232,7 +280,7 @@ def redeem_ticket(db: Session, token: str) -> tuple[DocumentVersion, StorageLoca
         metadata={"version_number": version.version_number, "size_bytes": version.size_bytes},
     )
     db.commit()
-    return version, location, "inline" if inline else "attachment", doc.name
+    return servable
 
 
 def content_disposition(disposition: str, filename: str) -> str:
@@ -240,10 +288,10 @@ def content_disposition(disposition: str, filename: str) -> str:
     return f"{disposition}; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(filename, safe='')}"
 
 
-def open_stream(version: DocumentVersion, location: StorageLocation):  # noqa: ANN201
-    provider = get_storage_provider(location.provider_type)
+def open_stream(servable: Servable):  # noqa: ANN201
+    provider = get_storage_provider(servable.location.provider_type)
     try:
-        return provider.stream_object(location.bucket, version.object_key)
+        return provider.stream_object(servable.location.bucket, servable.object_key)
     except ObjectNotFoundError as exc:
         raise NotFoundError("The stored file is missing. Contact an administrator.") from exc
     except StorageError as exc:

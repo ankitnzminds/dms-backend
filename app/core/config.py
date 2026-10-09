@@ -59,6 +59,13 @@ class Settings(BaseSettings):
     clamd_port: int = 3310
     clamd_timeout_seconds: float = 30.0
 
+    # --- content processing (text extraction / thumbnails / optional OCR) ---
+    extract_max_bytes: int = 25 * 1024 * 1024
+    extract_max_chars: int = 1_000_000
+    extract_max_pages: int = 300
+    extract_timeout_seconds: int = 60
+    ocr_command: str = ""  # path to a tesseract binary; empty = OCR disabled
+
     # --- rate limiting (per process; see docs/security) ---
     rate_limit_enabled: bool = True
     rate_limit_default_per_minute: int = 600

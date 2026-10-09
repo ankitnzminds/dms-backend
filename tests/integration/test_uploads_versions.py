@@ -583,18 +583,31 @@ class TestUnreleasedVersions:
                 pass
         # v2 (clean content) and v3 (marker) exist but are not scanned yet -> pending
         for number in (2, 3):
-            r = admin.post(f"/api/v1/documents/{doc_id}/download-url", json={"version_number": number})
+            r = admin.post(
+                f"/api/v1/documents/{doc_id}/download-url", json={"version_number": number}
+            )
             assert r.status_code == 409 and r.json()["error"]["code"] == "not_released"
         # a hand-made ticket for an unreleased version is refused at redemption time as well
         principal = Principal(admin.user_id, admin.email, None, admin.org_id, "owner")
-        ticket, _ = issue_ticket(principal, uuid.UUID(doc_id), uuid.UUID(sess[0]["version_id"]), "attachment")
+        ticket, _ = issue_ticket(
+            principal, uuid.UUID(doc_id), uuid.UUID(sess[0]["version_id"]), "attachment"
+        )
         assert w.client.get(f"/api/v1/downloads/{ticket}").status_code == 409
         w.process_jobs()
-        infected = admin.post(f"/api/v1/documents/{doc_id}/download-url", json={"version_number": 3})
+        infected = admin.post(
+            f"/api/v1/documents/{doc_id}/download-url", json={"version_number": 3}
+        )
         assert infected.status_code == 409  # infected: still never served
-        ticket, _ = issue_ticket(principal, uuid.UUID(doc_id), uuid.UUID(sess[1]["version_id"]), "attachment")
+        ticket, _ = issue_ticket(
+            principal, uuid.UUID(doc_id), uuid.UUID(sess[1]["version_id"]), "attachment"
+        )
         assert w.client.get(f"/api/v1/downloads/{ticket}").status_code == 409
-        assert admin.post(f"/api/v1/documents/{doc_id}/download-url", json={"version_number": 2}).status_code == 200
+        assert (
+            admin.post(
+                f"/api/v1/documents/{doc_id}/download-url", json={"version_number": 2}
+            ).status_code
+            == 200
+        )
 
 
 def test_unconfigured_scanner_leaves_files_unavailable(env):  # noqa: ANN001
@@ -604,7 +617,12 @@ def test_unconfigured_scanner_leaves_files_unavailable(env):  # noqa: ANN001
     w, admin = env["world"], env["admin"]
     doc = w.upload(admin, env["folder"], "noscan.pdf", PDF + b" noscan")
     base = build_context()
-    run_once(ctx=WorkerContext(base.settings, UnconfiguredScanner(), base.email), factory=w.db_factory)
+    run_once(
+        ctx=WorkerContext(base.settings, UnconfiguredScanner(), base.email), factory=w.db_factory
+    )
     d = admin.get(f"/api/v1/documents/{doc['document_id']}").json()
     assert d["status"] == "processing" and d["current_version"] is None
-    assert admin.post(f"/api/v1/documents/{doc['document_id']}/download-url", json={}).status_code == 409
+    assert (
+        admin.post(f"/api/v1/documents/{doc['document_id']}/download-url", json={}).status_code
+        == 409
+    )

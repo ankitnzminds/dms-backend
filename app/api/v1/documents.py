@@ -21,6 +21,7 @@ from app.schemas.admin import (
     UploadInitiate,
     UploadSessionOut,
 )
+from app.schemas.metadata import ProcessingStatusOut
 from app.schemas.sharing import PermissionGrantIn, PermissionGrantOut, ShareCreate, ShareOut
 from app.schemas.tree import (
     DocumentCopyRequest,
@@ -85,6 +86,15 @@ def copy_document(
     document_id: uuid.UUID, body: DocumentCopyRequest, db: DbSession, authz: Authz
 ) -> DocumentOut:
     return documents.copy_document(db, authz, document_id, body.target_folder_id, body.name)
+
+
+@router.get(
+    "/{document_id}/processing",
+    response_model=ProcessingStatusOut,
+    summary="Text-extraction / thumbnail status of the current version",
+)
+def processing_status(document_id: uuid.UUID, db: DbSession, authz: Authz) -> ProcessingStatusOut:
+    return documents.processing_status(db, authz, document_id)
 
 
 @router.put("/{document_id}/star", status_code=204, summary="Star a document")
@@ -157,7 +167,12 @@ def download_url(
     document_id: uuid.UUID, body: DownloadUrlRequest, db: DbSession, authz: Authz
 ) -> DownloadUrlOut:
     url, expires = downloads.create_download_url(
-        db, authz, document_id, version_number=body.version_number, inline=body.inline
+        db,
+        authz,
+        document_id,
+        version_number=body.version_number,
+        inline=body.inline,
+        variant=body.variant,
     )
     return DownloadUrlOut(url=url, expires_at=expires)
 

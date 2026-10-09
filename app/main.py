@@ -12,7 +12,7 @@ from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from sqlalchemy import text
 
 from app import __version__
-from app.api.v1 import admin, documents, folders, library, me, shares, uploads
+from app.api.v1 import admin, documents, folders, governance, library, me, metadata, shares, uploads
 from app.core.config import get_settings
 from app.core.errors import register_exception_handlers
 from app.core.logging import configure_logging, get_logger
@@ -75,7 +75,7 @@ def create_app() -> FastAPI:
     app.add_middleware(RequestContextMiddleware)  # outermost: wraps CORS and handlers
 
     v1 = APIRouter(prefix=settings.api_v1_prefix)
-    for module in (me, folders, documents, uploads, shares, library, admin):
+    for module in (me, folders, documents, uploads, shares, library, governance, metadata, admin):
         v1.include_router(module.router)
     if settings.auth_provider == "local" and settings.app_env in ("development", "test"):
         from app.api.v1 import dev
