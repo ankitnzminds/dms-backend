@@ -16,7 +16,7 @@ from app.schemas.automations import (
     AutomationUpdate,
     CatalogueOut,
     PublishRequest,
-    RunOut,
+    AutomationRunOut,
     TestRequest,
     ValidationReport,
 )
@@ -156,28 +156,38 @@ def test_automation(
     }
 
 
-@router.get("/automations/{automation_id}/runs", response_model=Page[RunOut], summary="Run history")
+@router.get(
+    "/automations/{automation_id}/runs",
+    response_model=Page[AutomationRunOut],
+    summary="Run history",
+)
 def list_runs(
     automation_id: uuid.UUID,
     db: DbSession,
     principal: CurrentPrincipal,
     limit: int = Query(25, ge=1, le=100),
     offset: int = Query(0, ge=0),
-) -> Page[RunOut]:
+) -> Page[AutomationRunOut]:
     items, total = runs.list_runs(db, principal, automation_id, limit=limit, offset=offset)
-    return Page[RunOut](items=items, total=total, limit=limit, offset=offset)
+    return Page[AutomationRunOut](items=items, total=total, limit=limit, offset=offset)
 
 
-@router.get("/automation-runs/{run_id}", response_model=RunOut, summary="Run with node outcomes")
-def get_run(run_id: uuid.UUID, db: DbSession, principal: CurrentPrincipal) -> RunOut:
+@router.get(
+    "/automation-runs/{run_id}", response_model=AutomationRunOut, summary="Run with node outcomes"
+)
+def get_run(run_id: uuid.UUID, db: DbSession, principal: CurrentPrincipal) -> AutomationRunOut:
     return runs.get_run(db, principal, run_id)
 
 
-@router.post("/automation-runs/{run_id}/retry", response_model=RunOut, summary="Retry failed steps")
-def retry_run(run_id: uuid.UUID, db: DbSession, principal: CurrentPrincipal) -> RunOut:
+@router.post(
+    "/automation-runs/{run_id}/retry", response_model=AutomationRunOut, summary="Retry failed steps"
+)
+def retry_run(run_id: uuid.UUID, db: DbSession, principal: CurrentPrincipal) -> AutomationRunOut:
     return runs.retry(db, principal, run_id)
 
 
-@router.post("/automation-runs/{run_id}/cancel", response_model=RunOut, summary="Cancel a run")
-def cancel_run(run_id: uuid.UUID, db: DbSession, principal: CurrentPrincipal) -> RunOut:
+@router.post(
+    "/automation-runs/{run_id}/cancel", response_model=AutomationRunOut, summary="Cancel a run"
+)
+def cancel_run(run_id: uuid.UUID, db: DbSession, principal: CurrentPrincipal) -> AutomationRunOut:
     return runs.cancel(db, principal, run_id)

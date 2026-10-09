@@ -61,3 +61,12 @@ with partial enforcement, CSV import/export, Admins, cursor-paged activity with 
 feature matrix, enforcement list and deferred items are in
 [`admin-user-management.md`](admin-user-management.md). Notably not supported: passwords, MFA,
 mobile devices, email delivery, backups, watermarks.
+
+## Complete user flow: automations, version diffs, access check, color tags, PDF export
+
+See [`user-flow-parity.md`](user-flow-parity.md) for the requirement-to-code matrix. Highlights: typed
+IF/THEN automations with a wizard and a visual canvas on one versioned definition, durable runs that
+re-authorize as the publisher at every step; format-aware version comparison (text, CSV, JSON, DOCX,
+XLSX, PPTX, PDF text); admin Check Access and ACL impact preview; color tags; Download as PDF via the
+office server. Deferred: delegated roles, manual-start/share/metadata triggers, link shares, async diff
+jobs, visual PDF diff, watermark/secure export.

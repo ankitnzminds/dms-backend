@@ -137,6 +137,11 @@ def _notify(c: Ctx, params: dict[str, Any], title: str, body: str, *, kind: str)
     from app.modules.notifications import service as notifications
 
     recipients = _recipient_ids(c, params)
+    if not recipients:
+        return NodeResult(
+            status="skipped",
+            output={"reason": "No active recipient could be resolved (for example the acting person is unknown)."},
+        )
     sent = 0
     for rid in recipients:
         visible = _can_view(c, rid)

@@ -307,6 +307,18 @@ class TestLifecycle:
         pub = o.post(f"{A}/automations/{aid}/publish", json={})
         assert pub.status_code == 422
 
+    def test_unfinished_canvas_drafts_can_be_created_but_not_activated(self, env):  # noqa: ANN001
+        o = env["owner"]
+        blank = {
+            "name": "blank", "editor_mode": "canvas", "allow_invalid": True,
+            "trigger": {"key": "file_created", "params": {}},
+            "graph": {"nodes": [{"id": "start", "type": "start"}], "edges": []},
+        }
+        r = o.post(f"{A}/automations", json=blank)
+        assert r.status_code == 201 and r.json()["status"] == "draft"
+        assert o.post(f"{A}/automations/{r.json()['id']}/publish", json={}).status_code == 422
+        assert o.post(f"{A}/automations", json={**blank, "name": "b2", "activate": True}).status_code == 422
+
     def test_archive_and_duplicate(self, env):  # noqa: ANN001
         o = env["owner"]
         aid = go_live(o, self.body(env))
@@ -695,6 +707,30 @@ class TestSecurityAtExecution:
         assert theirs is not None and "salaries" not in (theirs.title + (theirs.body or ""))
         assert theirs.resource_id is None
         assert runs_of(owner, aid)[0]["status"] == "succeeded"
+
+    def test_include_actor_resolves_the_uploader_for_scan_events(self, env, db):  # noqa: ANN001
+        from app.db.models import Notification
+
+        w, o = env["world"], env["owner"]
+        member = w.user(o, "member", label="up")
+        go_live(o, wizard("file_created", {}, "notify_users", {"include_actor": True, "title": "Thanks for {file.name}"}, "thanks"))
+        # the member needs create rights: give them the folder through an ACL
+        o.post(f"{API}/folders/{env['inbox']}/permissions", json={"subject_type": "user", "subject_id": str(member.user_id), "actions": ["view", "create_child", "upload_version"]})
+        w.available_doc(member, env["inbox"], "mine.pdf")
+        w.process_jobs()
+        db.rollback()
+        got = db.scalar(select(Notification).where(Notification.user_id == member.user_id, Notification.type == "automation.notice"))
+        assert got is not None and got.title == "Thanks for mine.pdf"
+
+    def test_notify_with_nobody_to_notify_is_skipped_not_succeeded(self, env):  # noqa: ANN001
+        w, o = env["world"], env["owner"]
+        aid = go_live(o, wizard("periodic_interval", {"every_minutes": 15}, "notify_users", {"include_actor": True, "title": "x"}, "nobody"))
+        from app.modules.automations import triggers
+
+        triggers.schedule_due(w.db_factory, datetime.now(UTC) + timedelta(hours=1))
+        w.process_jobs()
+        run = runs_of(o, aid)[0]
+        assert run["status"] == "skipped"
 
     def test_send_email_is_skipped_without_a_provider(self, env):  # noqa: ANN001
         w, o = env["world"], env["owner"]

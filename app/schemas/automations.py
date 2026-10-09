@@ -60,6 +60,10 @@ class AutomationCreate(ApiModel):
         description="Publish and enable immediately. Default false: the workflow is saved as a draft.",
     )
     confirm_high_risk: bool = False
+    allow_invalid: bool = Field(
+        False,
+        description="Canvas: create an empty/unfinished draft. Cannot be combined with activate.",
+    )
 
 
 class AutomationUpdate(ApiModel):
@@ -127,7 +131,7 @@ class NodeRunOut(ApiModel):
     finished_at: datetime | None
 
 
-class RunOut(ApiModel):
+class AutomationRunOut(ApiModel):
     id: uuid.UUID
     automation_id: uuid.UUID
     automation_name: str | None = None
@@ -156,6 +160,10 @@ class CatalogueEntry(ApiModel):
     kind: str | None = None
     observation: str | None = None
     risk: Literal["low", "high"] | None = None
+    provides: Literal["file", "folder", "user", "none"] | None = Field(
+        None, description="What a condition hands to the steps (conditions only)."
+    )
+    needs_resource: Literal["none", "file", "file_or_folder"] | None = None
     wizard: bool = True
     notes: list[str] = []
 

@@ -23,10 +23,10 @@ from app.modules.automations import engine, triggers
 from app.modules.automations.registry import ACTIONS, CONDITIONS
 from app.modules.automations.service import get_or_404, require_admin
 from app.modules.identity.principal import Principal
-from app.schemas.automations import NodeRunOut, RunOut
+from app.schemas.automations import NodeRunOut, AutomationRunOut
 
 
-def _run_out(db: Session, run: AutomationRun, *, with_nodes: bool) -> RunOut:
+def _run_out(db: Session, run: AutomationRun, *, with_nodes: bool) -> AutomationRunOut:
     version = db.get(AutomationVersion, run.version_id)
     a = db.get(Automation, run.automation_id)
     nodes: list[NodeRunOut] = []
@@ -50,7 +50,7 @@ def _run_out(db: Session, run: AutomationRun, *, with_nodes: bool) -> RunOut:
                     finished_at=nr.finished_at,
                 )
             )
-    return RunOut(
+    return AutomationRunOut(
         id=run.id,
         automation_id=run.automation_id,
         automation_name=a.name if a else None,
@@ -70,7 +70,7 @@ def _run_out(db: Session, run: AutomationRun, *, with_nodes: bool) -> RunOut:
 
 def list_runs(
     db: Session, p: Principal, automation_id: uuid.UUID, *, limit: int, offset: int
-) -> tuple[list[RunOut], int]:
+) -> tuple[list[AutomationRunOut], int]:
     get_or_404(db, p, automation_id)
     stmt = select(AutomationRun).where(
         AutomationRun.automation_id == automation_id,
@@ -83,7 +83,7 @@ def list_runs(
     return [_run_out(db, r, with_nodes=False) for r in rows], int(total)
 
 
-def get_run(db: Session, p: Principal, run_id: uuid.UUID) -> RunOut:
+def get_run(db: Session, p: Principal, run_id: uuid.UUID) -> AutomationRunOut:
     require_admin(p)
     run = db.scalar(
         select(AutomationRun).where(
@@ -95,7 +95,7 @@ def get_run(db: Session, p: Principal, run_id: uuid.UUID) -> RunOut:
     return _run_out(db, run, with_nodes=True)
 
 
-def retry(db: Session, p: Principal, run_id: uuid.UUID) -> RunOut:
+def retry(db: Session, p: Principal, run_id: uuid.UUID) -> AutomationRunOut:
     require_admin(p)
     run = db.scalar(
         select(AutomationRun)
@@ -129,7 +129,7 @@ def retry(db: Session, p: Principal, run_id: uuid.UUID) -> RunOut:
     return _run_out(db, run, with_nodes=True)
 
 
-def cancel(db: Session, p: Principal, run_id: uuid.UUID) -> RunOut:
+def cancel(db: Session, p: Principal, run_id: uuid.UUID) -> AutomationRunOut:
     require_admin(p)
     run = db.scalar(
         select(AutomationRun)

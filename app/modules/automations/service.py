@@ -519,6 +519,7 @@ def catalogue() -> CatalogueOut:
                 example=c.example,
                 variables=c.variables,
                 kind=c.kind,
+                provides=provides(c.key),  # type: ignore[arg-type]
                 observation=c.observation or None,
             )
             for c in CONDITIONS.values()
@@ -533,6 +534,7 @@ def catalogue() -> CatalogueOut:
                 schema_=a.params.model_json_schema(),
                 example=a.example,
                 risk=a.risk,
+                needs_resource=a.needs_resource,
                 wizard=a.wizard,
                 notes=a.notes,
             )
@@ -587,7 +589,10 @@ def create(db: Session, p: Principal, body: AutomationCreate) -> AutomationOut:
     require_admin(p)
     name = _clean_name(db, p, body.name)
     report = validate_definition(db, p, body.trigger, body.graph)
-    require_valid(report)
+    if body.allow_invalid and body.activate:
+        raise ValidationFailed("An unfinished draft cannot be activated.", code="invalid_workflow")
+    if not body.allow_invalid:
+        require_valid(report)
     trig, graph = _normalized(body.trigger, body.graph)
     a = Automation(
         id=uuid.uuid4(),

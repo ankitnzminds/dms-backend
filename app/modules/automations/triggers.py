@@ -131,6 +131,10 @@ def event_context(db: Session, ev: AuditEvent) -> tuple[dict[str, Any], dict[str
             )
         if version is None and doc.current_version_id:
             version = db.get(DocumentVersion, doc.current_version_id)
+        # Scan results are written by the system; for those the "actor" is whoever uploaded the version.
+        actor_id = ev.actor_user_id or (version.created_by if version else None)
+        base["actor"] = {"email": _actor_email(db, actor_id)}
+        stored["actor_id"] = str(actor_id) if actor_id else None
         ctx = {**base, **file_context(db, org, doc, version)}
         stored["resource"] = {"type": "document", "id": str(doc.id), "name": doc.name}
         return ctx, stored

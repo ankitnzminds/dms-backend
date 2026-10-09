@@ -1591,6 +1591,12 @@
             "title": "Activate",
             "type": "boolean"
           },
+          "allow_invalid": {
+            "default": false,
+            "description": "Canvas: create an empty/unfinished draft. Cannot be combined with activate.",
+            "title": "Allow Invalid",
+            "type": "boolean"
+          },
           "confirm_high_risk": {
             "default": false,
             "title": "Confirm High Risk",
@@ -1873,6 +1879,147 @@
           "runs_failed"
         ],
         "title": "AutomationOut",
+        "type": "object"
+      },
+      "AutomationRunOut": {
+        "properties": {
+          "automation_id": {
+            "format": "uuid",
+            "title": "Automation Id",
+            "type": "string"
+          },
+          "automation_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Automation Name"
+          },
+          "correlation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Correlation Id"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "event_key": {
+            "title": "Event Key",
+            "type": "string"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "live",
+              "dry"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "nodes": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/NodeRunOut"
+            },
+            "title": "Nodes",
+            "type": "array"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "running",
+              "waiting",
+              "succeeded",
+              "failed",
+              "cancelled",
+              "skipped"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "trigger_context": {
+            "additionalProperties": true,
+            "title": "Trigger Context",
+            "type": "object"
+          },
+          "version_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version Number"
+          }
+        },
+        "required": [
+          "id",
+          "automation_id",
+          "version_number",
+          "status",
+          "mode",
+          "event_key",
+          "trigger_context",
+          "error",
+          "correlation_id",
+          "created_at",
+          "started_at",
+          "finished_at"
+        ],
+        "title": "AutomationRunOut",
         "type": "object"
       },
       "AutomationUpdate": {
@@ -2193,6 +2340,22 @@
             "title": "Label",
             "type": "string"
           },
+          "needs_resource": {
+            "anyOf": [
+              {
+                "enum": [
+                  "none",
+                  "file",
+                  "file_or_folder"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Needs Resource"
+          },
           "notes": {
             "default": [],
             "items": {
@@ -2211,6 +2374,24 @@
               }
             ],
             "title": "Observation"
+          },
+          "provides": {
+            "anyOf": [
+              {
+                "enum": [
+                  "file",
+                  "folder",
+                  "user",
+                  "none"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What a condition hands to the steps (conditions only).",
+            "title": "Provides"
           },
           "risk": {
             "anyOf": [
@@ -6320,6 +6501,38 @@
         "title": "Page[AutomationOut]",
         "type": "object"
       },
+      "Page_AutomationRunOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AutomationRunOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "description": "Total items visible to the caller (after authorization).",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "Page[AutomationRunOut]",
+        "type": "object"
+      },
       "Page_ConversationOut_": {
         "properties": {
           "items": {
@@ -6510,38 +6723,6 @@
           "offset"
         ],
         "title": "Page[ReceivedShare]",
-        "type": "object"
-      },
-      "Page_RunOut_": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/app__schemas__automations__RunOut"
-            },
-            "title": "Items",
-            "type": "array"
-          },
-          "limit": {
-            "title": "Limit",
-            "type": "integer"
-          },
-          "offset": {
-            "title": "Offset",
-            "type": "integer"
-          },
-          "total": {
-            "description": "Total items visible to the caller (after authorization).",
-            "title": "Total",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "items",
-          "total",
-          "limit",
-          "offset"
-        ],
-        "title": "Page[RunOut]",
         "type": "object"
       },
       "Page_SearchResult_": {
@@ -10154,147 +10335,6 @@
         "title": "WorkflowVersionIn",
         "type": "object"
       },
-      "app__schemas__automations__RunOut": {
-        "properties": {
-          "automation_id": {
-            "format": "uuid",
-            "title": "Automation Id",
-            "type": "string"
-          },
-          "automation_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Automation Name"
-          },
-          "correlation_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Correlation Id"
-          },
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "error": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error"
-          },
-          "event_key": {
-            "title": "Event Key",
-            "type": "string"
-          },
-          "finished_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Finished At"
-          },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "mode": {
-            "enum": [
-              "live",
-              "dry"
-            ],
-            "title": "Mode",
-            "type": "string"
-          },
-          "nodes": {
-            "default": [],
-            "items": {
-              "$ref": "#/components/schemas/NodeRunOut"
-            },
-            "title": "Nodes",
-            "type": "array"
-          },
-          "started_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Started At"
-          },
-          "status": {
-            "enum": [
-              "queued",
-              "running",
-              "waiting",
-              "succeeded",
-              "failed",
-              "cancelled",
-              "skipped"
-            ],
-            "title": "Status",
-            "type": "string"
-          },
-          "trigger_context": {
-            "additionalProperties": true,
-            "title": "Trigger Context",
-            "type": "object"
-          },
-          "version_number": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Version Number"
-          }
-        },
-        "required": [
-          "id",
-          "automation_id",
-          "version_number",
-          "status",
-          "mode",
-          "event_key",
-          "trigger_context",
-          "error",
-          "correlation_id",
-          "created_at",
-          "started_at",
-          "finished_at"
-        ],
-        "title": "RunOut",
-        "type": "object"
-      },
       "app__schemas__chat__RunOut": {
         "properties": {
           "assistant_message_id": {
@@ -12303,7 +12343,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/app__schemas__automations__RunOut"
+                  "$ref": "#/components/schemas/AutomationRunOut"
                 }
               }
             },
@@ -12378,7 +12418,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/app__schemas__automations__RunOut"
+                  "$ref": "#/components/schemas/AutomationRunOut"
                 }
               }
             },
@@ -12453,7 +12493,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/app__schemas__automations__RunOut"
+                  "$ref": "#/components/schemas/AutomationRunOut"
                 }
               }
             },
@@ -13433,7 +13473,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Page_RunOut_"
+                  "$ref": "#/components/schemas/Page_AutomationRunOut_"
                 }
               }
             },
