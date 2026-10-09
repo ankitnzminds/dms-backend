@@ -67,13 +67,14 @@ def normalize_content_type(value: str | None) -> str:
     )
 
 
+_TEXT_CLAIMS = {"text/plain", "text/csv", "text/markdown", "application/json"}
 _PREVIEWABLE_CLAIMS = {
     "application/pdf",
     "image/png",
     "image/jpeg",
     "image/gif",
     "image/webp",
-    "text/plain",
+    *_TEXT_CLAIMS,
 }
 
 
@@ -91,7 +92,7 @@ def sniff_content_type(head: bytes, claimed: str) -> str:
         return "image/gif"
     if head[:4] == b"RIFF" and head[8:12] == b"WEBP":
         return "image/webp"
-    if claimed == "text/plain" and not any(b < 9 or 13 < b < 32 for b in head):
+    if claimed in _TEXT_CLAIMS and not any(b < 9 or 13 < b < 32 for b in head):
         return claimed
     if claimed in _PREVIEWABLE_CLAIMS:
         return "application/octet-stream"

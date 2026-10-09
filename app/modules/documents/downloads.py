@@ -54,7 +54,17 @@ from app.modules.identity.principal import Principal
 _TOKEN_TYPE = "dms-download"  # noqa: S105
 # Types a browser may render inline when previewing. Everything else is attachment-only.
 PREVIEWABLE_TYPES = frozenset(
-    {"application/pdf", "image/png", "image/jpeg", "image/gif", "image/webp", "text/plain"}
+    {
+        "application/pdf",
+        "image/png",
+        "image/jpeg",
+        "image/gif",
+        "image/webp",
+        "text/plain",
+        "text/csv",
+        "text/markdown",
+        "application/json",
+    }
 )
 
 
@@ -296,3 +306,26 @@ def open_stream(servable: Servable):  # noqa: ANN201
         raise NotFoundError("The stored file is missing. Contact an administrator.") from exc
     except StorageError as exc:
         raise DependencyUnavailableError("Storage is unavailable. Please retry.") from exc
+
+
+def servable_current(
+    db: Session, authz: AuthorizationService, document_id: uuid.UUID, action: Action
+) -> tuple[Servable, DocumentVersion]:
+    """Authorize ``action`` on the document, then describe its current scan-clean version.
+    Used by integrations that stream bytes themselves (office suite) - same gates as downloads."""
+    doc = authz.require_document(document_id, action)
+    version = _servable_version(db, doc.organization_id, doc, None)
+    location = db.get(StorageLocation, version.storage_location_id)
+    if location is None or location.organization_id != authz.principal.organization_id:
+        raise NotFoundError("Storage location not found.")
+    return (
+        Servable(
+            location=location,
+            object_key=version.object_key,
+            size=version.size_bytes,
+            content_type=version.content_type,
+            disposition="inline",
+            filename=doc.name,
+        ),
+        version,
+    )

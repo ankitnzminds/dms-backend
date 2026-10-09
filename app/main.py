@@ -26,9 +26,11 @@ from app.api.v1 import (
     library,
     me,
     metadata,
+    office,
     shares,
     signatures,
     uploads,
+    wopi,
     workflows,
 )
 from app.core.config import get_settings
@@ -107,6 +109,8 @@ def create_app() -> FastAPI:
         chat,
         comments,
         metadata,
+        office,
+        wopi,
         workflows,
         signatures,
         directory,

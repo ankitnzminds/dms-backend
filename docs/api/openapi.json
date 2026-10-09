@@ -3804,6 +3804,117 @@
         "title": "NotificationPreferencesOut",
         "type": "object"
       },
+      "OfficeSessionIn": {
+        "properties": {
+          "mode": {
+            "default": "view",
+            "enum": [
+              "view",
+              "edit"
+            ],
+            "title": "Mode",
+            "type": "string"
+          }
+        },
+        "title": "OfficeSessionIn",
+        "type": "object"
+      },
+      "OfficeSessionOut": {
+        "properties": {
+          "access_token": {
+            "description": "Scoped to this document and mode, short-lived, re-authorized on every call.",
+            "title": "Access Token",
+            "type": "string"
+          },
+          "access_token_ttl": {
+            "description": "Expiry as epoch milliseconds (WOPI convention).",
+            "title": "Access Token Ttl",
+            "type": "integer"
+          },
+          "can_download": {
+            "description": "Print/export/copy are disabled in the editor when false.",
+            "title": "Can Download",
+            "type": "boolean"
+          },
+          "can_edit": {
+            "title": "Can Edit",
+            "type": "boolean"
+          },
+          "editor_url": {
+            "description": "Office server URL for the iframe. POST access_token to it (form post, target=iframe) - never put the token in a URL.",
+            "title": "Editor Url",
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "view",
+              "edit"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why you were given view instead of edit.",
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "editor_url",
+          "access_token",
+          "access_token_ttl",
+          "mode",
+          "can_edit",
+          "can_download"
+        ],
+        "title": "OfficeSessionOut",
+        "type": "object"
+      },
+      "OfficeStatus": {
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "editable_extensions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Editable Extensions",
+            "type": "array"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "viewable_extensions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Viewable Extensions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "available"
+        ],
+        "title": "OfficeStatus",
+        "type": "object"
+      },
       "OrganizationOut": {
         "properties": {
           "id": {
@@ -14398,6 +14509,121 @@
         ]
       }
     },
+    "/api/v1/documents/{document_id}/office-session": {
+      "post": {
+        "operationId": "create_office_session_api_v1_documents__document_id__office_session_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Document Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OfficeSessionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfficeSessionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Open a document in the office viewer/editor (view needs preview; edit needs upload_version)",
+        "tags": [
+          "office"
+        ]
+      }
+    },
     "/api/v1/documents/{document_id}/permissions": {
       "get": {
         "operationId": "document_permissions_api_v1_documents__document_id__permissions_get",
@@ -19760,6 +19986,101 @@
         "summary": "Mark a notification read",
         "tags": [
           "library"
+        ]
+      }
+    },
+    "/api/v1/office/status": {
+      "get": {
+        "operationId": "office_status_api_v1_office_status_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfficeStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Is the office viewer/editor available?",
+        "tags": [
+          "office"
         ]
       }
     },

@@ -95,6 +95,21 @@ class Settings(BaseSettings):
     agent_run_mode: Literal["thread", "inline"] = "thread"  # tests run inline
     signature_reconcile_minutes: int = 15
 
+    # --- Office documents (Collabora Online via WOPI) ---
+    office_provider: Literal["auto", "none", "collabora"] = "auto"
+    collabora_url: str = (
+        ""  # base URL the BROWSER uses to reach Collabora, e.g. http://localhost:9980
+    )
+    collabora_discovery_url: str = (
+        ""  # server-to-server base for /hosting/discovery (default: collabora_url)
+    )
+    wopi_host_url: str = (
+        ""  # base URL the Collabora SERVER uses to call this API (default: public_api_base_url)
+    )
+    wopi_token_ttl_seconds: int = 3600
+    office_max_bytes: int = 50 * 1024 * 1024
+    wopi_lock_seconds: int = 1800
+
     # --- rate limiting (per process; see docs/security) ---
     rate_limit_enabled: bool = True
     rate_limit_default_per_minute: int = 600
@@ -126,6 +141,12 @@ class Settings(BaseSettings):
         if self.signature_provider != "auto":
             return self.signature_provider
         return "documenso" if self.documenso_url and self.documenso_api_key else "none"
+
+    @property
+    def effective_office_provider(self) -> str:
+        if self.office_provider != "auto":
+            return self.office_provider
+        return "collabora" if self.collabora_url else "none"
 
     @property
     def effective_ai_provider(self) -> str:

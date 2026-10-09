@@ -18,6 +18,7 @@ from app.db.models.directory import (
 )
 from app.db.models.governance import LegalHold, LegalHoldItem, RetentionPolicy
 from app.db.models.identity import Group, GroupMembership, Membership, Organization, User
+from app.db.models.office import OfficeLock
 from app.db.models.platform import (
     AuditEvent,
     DocumentStar,
@@ -47,6 +48,7 @@ from app.db.models.workflows import (
 )
 
 __all__ = [
+    "OfficeLock",
     "Comment",
     "AccessRequest",
     "AgentRun",
