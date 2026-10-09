@@ -13,11 +13,11 @@ from app.api.deps import CurrentPrincipal, DbSession, get_verified_identity, lim
 from app.core.errors import ForbiddenError, NotFoundError, ValidationFailed
 from app.db.enums import UserStatus
 from app.db.models import Membership, Organization, User
-from app.modules.identity.service import find_or_bind_user
+from app.modules.identity.service import assert_session_valid, find_or_bind_user
 from app.modules.organizations import service as orgs
 from app.modules.users import service as users
 from app.schemas.admin import MeOut, OrganizationOut, OrganizationUpdate, UsageOut
-from app.schemas.common import UserRef
+from app.schemas.common import ApiModel, UserRef
 
 router = APIRouter(tags=["identity"])
 
@@ -60,6 +60,7 @@ def me(
     user = find_or_bind_user(db, identity)
     if user.status != UserStatus.ACTIVE.value:
         raise ForbiddenError("This account is not active.", code="account_inactive")
+    assert_session_valid(user, identity)
     active, pending = users.membership_views(db, user)
     # Current org mirrors principal resolution: the selected (header) or only active membership.
     current = None
@@ -205,3 +206,38 @@ def get_member(user_id: uuid.UUID, db: DbSession, principal: CurrentPrincipal) -
     if row is None:
         raise NotFoundError("Member not found.")
     return UserRef(id=row[0], display_name=row[1], email=row[2])
+
+
+class LogoutIn(ApiModel):
+    everywhere: bool = False
+
+
+@router.post(
+    "/me/logout",
+    status_code=204,
+    summary="Record a sign-out; everywhere=true also invalidates every token issued so far",
+)
+def logout(db: DbSession, principal: CurrentPrincipal, body: LogoutIn | None = None) -> Response:
+    """The client discards its token on sign-out. Tokens are stateless, so a single token cannot
+    be revoked server-side; ``everywhere`` revokes all of this user's tokens issued before now
+    (the same mechanism admins use for suspected compromise)."""
+    from datetime import UTC, datetime
+
+    from app.modules.audit import service as audit
+
+    everywhere = bool(body and body.everywhere)
+    if everywhere:
+        user = db.get(User, principal.user_id)
+        assert user is not None
+        user.sessions_valid_after = datetime.now(UTC)
+    audit.record(
+        db,
+        organization_id=principal.organization_id,
+        actor_user_id=principal.user_id,
+        action="auth.logout",
+        resource_type="user",
+        resource_id=principal.user_id,
+        metadata={"everywhere": everywhere},
+    )
+    db.commit()
+    return Response(status_code=204)

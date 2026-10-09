@@ -316,6 +316,52 @@
         "title": "ActionOut",
         "type": "object"
       },
+      "ActivityItem": {
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "actor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "you": {
+            "title": "You",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "action",
+          "label",
+          "actor",
+          "at",
+          "you"
+        ],
+        "title": "ActivityItem",
+        "type": "object"
+      },
       "AiAnswerOut": {
         "properties": {
           "answer": {
@@ -2968,6 +3014,17 @@
         "title": "LockOut",
         "type": "object"
       },
+      "LogoutIn": {
+        "properties": {
+          "everywhere": {
+            "default": false,
+            "title": "Everywhere",
+            "type": "boolean"
+          }
+        },
+        "title": "LogoutIn",
+        "type": "object"
+      },
       "MeOut": {
         "properties": {
           "capabilities": {
@@ -3291,6 +3348,16 @@
               }
             ],
             "title": "Context Folder Id"
+          },
+          "scope": {
+            "default": "workspace",
+            "description": "'document' = answer ONLY from context_document_id (right-click: ask about this document); the assistant gets no other tools or documents.",
+            "enum": [
+              "workspace",
+              "document"
+            ],
+            "title": "Scope",
+            "type": "string"
           }
         },
         "required": [
@@ -13295,6 +13362,128 @@
         ]
       }
     },
+    "/api/v1/documents/{document_id}/activity": {
+      "get": {
+        "operationId": "document_activity_api_v1_documents__document_id__activity_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Document Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ActivityItem"
+                  },
+                  "title": "Response Document Activity Api V1 Documents  Document Id  Activity Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Activity feed of a document (the Activity tab)",
+        "tags": [
+          "comments"
+        ]
+      }
+    },
     "/api/v1/documents/{document_id}/ai/ask": {
       "post": {
         "operationId": "ask_api_v1_documents__document_id__ai_ask_post",
@@ -16411,6 +16600,128 @@
         ]
       }
     },
+    "/api/v1/folders/{folder_id}/activity": {
+      "get": {
+        "operationId": "folder_activity_api_v1_folders__folder_id__activity_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "folder_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Folder Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ActivityItem"
+                  },
+                  "title": "Response Folder Activity Api V1 Folders  Folder Id  Activity Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Activity feed of a folder",
+        "tags": [
+          "comments"
+        ]
+      }
+    },
     "/api/v1/folders/{folder_id}/breadcrumb": {
       "get": {
         "operationId": "get_breadcrumb_api_v1_folders__folder_id__breadcrumb_get",
@@ -18428,6 +18739,82 @@
           }
         },
         "summary": "Accept an organization invitation",
+        "tags": [
+          "identity"
+        ]
+      }
+    },
+    "/api/v1/me/logout": {
+      "post": {
+        "description": "The client discards its token on sign-out. Tokens are stateless, so a single token cannot\nbe revoked server-side; ``everywhere`` revokes all of this user's tokens issued before now\n(the same mechanism admins use for suspected compromise).",
+        "operationId": "logout_api_v1_me_logout_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/LogoutIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Record a sign-out; everywhere=true also invalidates every token issued so far",
         "tags": [
           "identity"
         ]

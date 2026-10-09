@@ -55,6 +55,8 @@ class ToolContext:
     blocks: list[dict[str, Any]] = field(default_factory=list)
     guards: set[str] = field(default_factory=set)
     pending_ids: list[uuid.UUID] = field(default_factory=list)
+    # Document chat: the ONLY document the assistant may read in this run (enforced per tool).
+    scope_document_id: uuid.UUID | None = None
 
     def add_source(self, p: retrieval.Passage) -> str:
         for ref, existing in self.sources.items():
@@ -210,6 +212,8 @@ def _passages(ctx: ToolContext, found: list[retrieval.Passage]) -> dict[str, Any
 
 
 def t_retrieve(ctx: ToolContext, a: RetrieveArgs) -> dict[str, Any]:
+    if ctx.scope_document_id is not None:
+        a = RetrieveArgs(query=a.query, document_ids=[ctx.scope_document_id], limit=a.limit)
     return _passages(
         ctx,
         retrieval.retrieve(ctx.db, ctx.authz, a.query, document_ids=a.document_ids, limit=a.limit),
@@ -937,11 +941,19 @@ def _inline(schema: dict[str, Any]) -> dict[str, Any]:
     return walk({k: v for k, v in schema.items() if k != "$defs"})  # type: ignore[no-any-return]
 
 
-def tool_specs(privileged: bool) -> list[dict[str, Any]]:
+# A document chat sees one document and nothing else: read-only, no search, no writes.
+SCOPED_TOOLS = frozenset(
+    {"retrieve_passages", "read_document", "get_document_metadata", "get_version_history"}
+)
+
+
+def tool_specs(privileged: bool, scoped: bool = False) -> list[dict[str, Any]]:
     """OpenAI-style function schemas for exactly the tools this session may use."""
     out = []
     for t in TOOLS.values():
         if t.admin_only and not privileged:
+            continue
+        if scoped and t.name not in SCOPED_TOOLS:
             continue
         out.append(
             {
@@ -987,7 +999,11 @@ def execute_tool(ctx: ToolContext, name: str, raw_args: str) -> dict[str, Any]:
         return int((time.monotonic() - started) * 1000)
 
     p = ctx.authz.principal
-    if tool is None or (tool.admin_only and not (p.is_admin or p.can_read_audit)):
+    if (
+        tool is None
+        or (tool.admin_only and not (p.is_admin or p.can_read_audit))
+        or (ctx.scope_document_id is not None and name not in SCOPED_TOOLS)
+    ):
         _record(ctx, name, raw_args, "invalid", "unknown_tool", "error", ms())
         return {"error": {"code": "unknown_tool", "message": "That tool does not exist."}}
     try:
@@ -999,6 +1015,12 @@ def execute_tool(ctx: ToolContext, name: str, raw_args: str) -> dict[str, Any]:
                 "code": "invalid_arguments",
                 "message": "The arguments were invalid. Check the schema and try again.",
             }
+        }
+    target = getattr(args, "document_id", None)
+    if ctx.scope_document_id is not None and target is not None and target != ctx.scope_document_id:
+        _record(ctx, name, raw_args, "deny", "outside_document_scope", "error", ms())
+        return {
+            "error": {"code": "not_available", "message": "Only the open document is available."}
         }
     try:
         result = tool.handler(ctx, args)

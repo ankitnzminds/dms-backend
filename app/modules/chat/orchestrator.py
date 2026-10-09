@@ -134,6 +134,23 @@ def _finalize_text(text: str, sources: dict[str, Any]) -> tuple[str, list[str]]:
     return _REF.sub(keep, text).strip(), used
 
 
+SCOPE_PROMPT = (
+    "DOCUMENT CHAT: the user is asking about ONE document. Answer only from its content using "
+    "retrieve_passages (or read_document) and cite [S#]. You have no other documents or tools. "
+    "If the answer is not in the document, say so. Do not use outside knowledge for facts about it."
+)
+
+
+def _scope_document(blocks: list[dict[str, Any]]) -> uuid.UUID | None:
+    for b in blocks:
+        if b.get("type") == "context" and b.get("scope") == "document" and b.get("document_id"):
+            try:
+                return uuid.UUID(b["document_id"])
+            except ValueError:
+                return None
+    return None
+
+
 def _context_hint(authz: AuthorizationService, blocks: list[dict[str, Any]]) -> str | None:
     for b in blocks:
         if b.get("type") != "context":
@@ -206,7 +223,10 @@ def _run(db: Session, run_id: uuid.UUID, org_id: uuid.UUID, user_id: uuid.UUID) 
         .limit(1)
     )
     assert user_msg is not None
+    scope_doc = _scope_document(user_msg.blocks)
     messages: list[dict[str, Any]] = [{"role": "system", "content": SYSTEM_PROMPT}]
+    if scope_doc is not None:
+        messages.append({"role": "system", "content": SCOPE_PROMPT})
     hint = _context_hint(authz, user_msg.blocks)
     if hint:
         messages.append({"role": "system", "content": hint})
@@ -218,7 +238,10 @@ def _run(db: Session, run_id: uuid.UUID, org_id: uuid.UUID, user_id: uuid.UUID) 
     ctx = toolbox.ToolContext(
         db=db, authz=authz, settings=settings, run_id=run.id, conversation_id=run.conversation_id
     )
-    specs = toolbox.tool_specs(principal.is_admin or principal.can_read_audit)
+    ctx.scope_document_id = scope_doc
+    specs = toolbox.tool_specs(
+        principal.is_admin or principal.can_read_audit, scoped=scope_doc is not None
+    )
     deadline = time.monotonic() + settings.agent_max_runtime_seconds
     final: str | None = None
     code: str | None = None

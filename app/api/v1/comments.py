@@ -8,7 +8,9 @@ from fastapi import APIRouter, Query, Response
 
 from app.api.deps import Authz, DbSession, limited
 from app.core.errors import ErrorResponse
+from app.modules.activity import service as activity
 from app.modules.comments import service as svc
+from app.schemas.activity import ActivityItem
 from app.schemas.comments import CommentCreate, CommentEdit, CommentList, CommentOut
 
 router = APIRouter(
@@ -88,3 +90,33 @@ def edit_comment(
 def delete_comment(comment_id: uuid.UUID, db: DbSession, authz: Authz) -> Response:
     svc.delete_comment(db, authz, comment_id)
     return Response(status_code=204)
+
+
+@router.get(
+    "/documents/{document_id}/activity",
+    response_model=list[ActivityItem],
+    summary="Activity feed of a document (the Activity tab)",
+)
+def document_activity(
+    document_id: uuid.UUID,
+    db: DbSession,
+    authz: Authz,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+) -> list[ActivityItem]:
+    return activity.list_activity(db, authz, "document", document_id, limit=limit, offset=offset)
+
+
+@router.get(
+    "/folders/{folder_id}/activity",
+    response_model=list[ActivityItem],
+    summary="Activity feed of a folder",
+)
+def folder_activity(
+    folder_id: uuid.UUID,
+    db: DbSession,
+    authz: Authz,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+) -> list[ActivityItem]:
+    return activity.list_activity(db, authz, "folder", folder_id, limit=limit, offset=offset)

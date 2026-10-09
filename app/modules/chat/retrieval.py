@@ -215,8 +215,7 @@ def retrieve(
                     )
                 )
     scored.sort(key=lambda t: (t[0], t[1]), reverse=True)
-    if document_ids:  # explicit documents: keep reading order so summaries cover the start
-        picked = [p for _, _, p in scored]
-        picked.sort(key=lambda p: (str(p.document_id), p.chunk_index))
-        return picked[:limit]
-    return [p for _, _, p in scored[:limit]]
+    best = [p for _, _, p in scored[:limit]]
+    if document_ids:  # explicit documents: best passages first picked, then shown in reading order
+        best.sort(key=lambda p: (str(p.document_id), p.chunk_index))
+    return best

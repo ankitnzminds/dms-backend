@@ -12,9 +12,10 @@ BEFORE anything is returned: rows, totals, breadcrumbs, permissions and snippets
 
 from __future__ import annotations
 
+import re
 import uuid
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
@@ -43,6 +44,22 @@ class SearchResult(ApiModel):
     status: str | None = None
     match: Literal["name", "content", "both"] | None = None
     snippet: str | None = None  # plain text; matched terms wrapped in [[ ]] - never HTML
+
+
+_WORD = re.compile(r"[^\W_]+")  # unicode letters/digits only: safe to splice into a tsquery
+
+
+def query_terms(q: str) -> list[str]:
+    return _WORD.findall(q.lower())[:8]
+
+
+def build_tsquery(q: str, *, any_term: bool = False) -> Any:
+    """Prefix-matching query: 'budg 2026' finds 'budget ... 2026' (as-you-type search). Quoted
+    phrases and -exclusions/OR keep PostgreSQL's web-search semantics."""
+    terms = query_terms(q)
+    if not terms or '"' in q or re.search(r"(^|\s)(-\S|or(\s|$))", q, re.IGNORECASE):
+        return func.websearch_to_tsquery("simple", q)
+    return func.to_tsquery("simple", (" | " if any_term else " & ").join(f"{t}:*" for t in terms))
 
 
 def _escape_like(value: str) -> str:
@@ -75,7 +92,7 @@ def search(
     meta_filters = parse_filters(db, org, meta)
 
     pattern = f"%{_escape_like(q.lower())}%"
-    ts = func.websearch_to_tsquery("simple", q)
+    ts = build_tsquery(q)
 
     def doc_filters(stmt):  # noqa: ANN001, ANN202
         stmt = stmt.where(Document.organization_id == org, Document.deleted_at.is_(None))
@@ -95,41 +112,50 @@ def search(
             ).where(DocumentVersion.content_type == content_type)
         return stmt
 
-    name_docs: list[Document] = []
-    content_docs: list[Document] = []
     folders: list[Folder] = []
 
-    if kind in (None, "document") and scope in ("all", "name"):
-        stmt = doc_filters(select(Document)).where(
-            or_(
-                Document.search_vector.op("@@")(ts),
-                func.lower(Document.name).like(pattern, escape="\\"),
-            )
-        )
-        name_docs = list(
-            db.scalars(
-                stmt.order_by(
-                    func.ts_rank(Document.search_vector, ts).desc(), Document.updated_at.desc()
-                ).limit(MAX_CANDIDATES)
-            )
-        )
-    if kind in (None, "document") and scope in ("all", "content"):
-        stmt = (
-            doc_filters(select(Document))
-            .join(
-                DocumentText,
-                (DocumentText.version_id == Document.current_version_id)
-                & (DocumentText.organization_id == Document.organization_id),
-            )
-            .where(DocumentText.search_vector.op("@@")(ts))
-        )
-        content_docs = list(
-            db.scalars(
-                stmt.order_by(func.ts_rank(DocumentText.search_vector, ts).desc()).limit(
-                    MAX_CANDIDATES
+    def fetch(ts: Any) -> tuple[list[Document], list[Document]]:
+        found_by_name: list[Document] = []
+        found_by_content: list[Document] = []
+        if kind in (None, "document") and scope in ("all", "name"):
+            stmt = doc_filters(select(Document)).where(
+                or_(
+                    Document.search_vector.op("@@")(ts),
+                    func.lower(Document.name).like(pattern, escape="\\"),
                 )
             )
-        )
+            found_by_name = list(
+                db.scalars(
+                    stmt.order_by(
+                        func.ts_rank(Document.search_vector, ts).desc(), Document.updated_at.desc()
+                    ).limit(MAX_CANDIDATES)
+                )
+            )
+        if kind in (None, "document") and scope in ("all", "content"):
+            stmt = (
+                doc_filters(select(Document))
+                .join(
+                    DocumentText,
+                    (DocumentText.version_id == Document.current_version_id)
+                    & (DocumentText.organization_id == Document.organization_id),
+                )
+                .where(DocumentText.search_vector.op("@@")(ts))
+            )
+            found_by_content = list(
+                db.scalars(
+                    stmt.order_by(func.ts_rank(DocumentText.search_vector, ts).desc()).limit(
+                        MAX_CANDIDATES
+                    )
+                )
+            )
+        return found_by_name, found_by_content
+
+    name_docs, content_docs = fetch(ts)
+    if not name_docs and not content_docs and len(query_terms(q)) > 1:
+        # Nothing contains every word: fall back to documents that contain ANY of them, ranked.
+        ts = build_tsquery(q, any_term=True)
+        name_docs, content_docs = fetch(ts)
+
     if (
         kind in (None, "folder")
         and scope in ("all", "name")

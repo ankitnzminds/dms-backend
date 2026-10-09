@@ -936,3 +936,65 @@ def test_workflow_draft_is_validated_previewed_and_created_only_on_confirmation(
 def test_chat_status_and_rate_limit_config(env):  # noqa: ANN001
     s = env["member"].get(f"{API}/chat/status").json()
     assert s["enabled"] and s["model"] == "fake-model" and s["max_bulk_items"] == 50
+
+
+# ------------------------------------------------------------------ document chat (right-click: ask about this file)
+def test_document_chat_sees_only_that_document(env):  # noqa: ANN001
+    m, conv = env["member"], convo(env["member"])
+    w, a = env["world"], env["admin"]
+    other = w.available_doc(
+        a, env["pub"], "other.txt", b"Unrelated vacation policy: 25 days per year."
+    )
+    ask(
+        env,
+        m,
+        conv,
+        "what does it say about marketing?",
+        [
+            tool_turn(
+                "search_documents", {"query": "vacation"}
+            ),  # not available in a document chat
+            tool_turn("read_document", {"document_id": other}, "c2"),  # outside the scope
+            tool_turn(
+                "retrieve_passages", {"query": "marketing budget", "document_ids": [other]}, "c3"
+            ),
+            ChatTurn(content="The budget is 500000 EUR [S1]."),
+        ],
+        context_document_id=env["budget"],
+        scope="document",
+    )
+    names = env["llm"].tool_names[0]
+    assert set(names) == {
+        "retrieve_passages",
+        "read_document",
+        "get_document_metadata",
+        "get_version_history",
+    }
+    seen = env["llm"].all_text_seen()
+    assert (
+        "vacation policy" not in seen and "25 days" not in seen
+    )  # the other document never reached the model
+    assert "approved 2026 marketing budget" in seen  # forced retrieval used the scoped document
+    a_msg = last_assistant(m, conv)
+    assert [c["document_id"] for c in a_msg["citations"]] == [env["budget"]]
+    assert "DOCUMENT CHAT" in str(env["llm"].seen[0])
+
+
+def test_document_chat_requires_a_readable_document(env):  # noqa: ANN001
+    m, conv = env["member"], convo(env["member"])
+    r = m.post(
+        f"{API}/chat/conversations/{conv}/messages", json={"content": "x", "scope": "document"}
+    )
+    assert r.status_code == 422
+    r = m.post(
+        f"{API}/chat/conversations/{conv}/messages",
+        json={"content": "x", "scope": "document", "context_document_id": env["secret"]},
+    )
+    assert r.status_code == 404  # not visible
+    env["admin"].patch(f"{API}/documents/{env['budget']}", json={"classification": "restricted"})
+    r = m.post(
+        f"{API}/chat/conversations/{conv}/messages",
+        json={"content": "x", "scope": "document", "context_document_id": env["budget"]},
+    )
+    assert r.status_code in (403, 404)
+    assert env["llm"].seen == []

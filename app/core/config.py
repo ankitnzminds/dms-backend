@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     supabase_jwt_secret: SecretStr | None = None  # legacy HS256 projects only
     supabase_jwt_audience: str = "authenticated"
     local_jwt_secret: SecretStr | None = None  # development/test only
+    local_dev_password: SecretStr = SecretStr("dev-password-123")  # dev/test sign-in form only
     auth_clock_skew_seconds: int = 30
 
     # --- storage ---

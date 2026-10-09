@@ -34,6 +34,8 @@ os.environ.update(
         "SUPABASE_STORAGE_BUCKET": "dms-test",
         "SIGNATURE_PROVIDER": "fake",
         "AI_PROVIDER": "fake",
+        "CORS_ALLOWED_ORIGINS": "http://localhost:3000",
+        "FRAME_ANCESTORS": "",
         "AGENT_RUN_MODE": "inline",
         "SIGNATURE_WEBHOOK_SECRET": "test-signature-webhook-secret-0123456789",
     }

@@ -72,6 +72,19 @@ def find_or_bind_user(db: Session, identity: VerifiedIdentity) -> User:
     raise ForbiddenError("This account is not provisioned for the DMS.", code="not_provisioned")
 
 
+def assert_session_valid(user: User, identity: VerifiedIdentity) -> None:
+    """Tokens issued at/before the user's revocation moment are rejected (sign-out everywhere)."""
+    if (
+        user.sessions_valid_after is not None
+        and identity.issued_at is not None
+        and identity.issued_at.replace(microsecond=0)
+        <= user.sessions_valid_after.replace(microsecond=0)
+    ):
+        raise UnauthorizedError(
+            "Session has been revoked. Please sign in again.", code="session_revoked"
+        )
+
+
 def resolve_principal(
     db: Session, identity: VerifiedIdentity, requested_org: uuid.UUID | None
 ) -> Principal:
@@ -86,15 +99,7 @@ def resolve_principal(
         )
         raise ForbiddenError("This account is not active.", code="account_inactive")
 
-    if (
-        user.sessions_valid_after is not None
-        and identity.issued_at is not None
-        and identity.issued_at.replace(microsecond=0)
-        <= user.sessions_valid_after.replace(microsecond=0)
-    ):
-        raise UnauthorizedError(
-            "Session has been revoked. Please sign in again.", code="session_revoked"
-        )
+    assert_session_valid(user, identity)
 
     now = datetime.now(UTC)
     if user.last_login_at is None or now - user.last_login_at > _LAST_LOGIN_UPDATE_INTERVAL:

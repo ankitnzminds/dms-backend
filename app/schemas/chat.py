@@ -106,6 +106,11 @@ class MessageCreate(ApiModel):
     content: str = Field(min_length=1, max_length=4000)
     context_document_id: uuid.UUID | None = None
     context_folder_id: uuid.UUID | None = None
+    scope: Literal["workspace", "document"] = Field(
+        "workspace",
+        description="'document' = answer ONLY from context_document_id (right-click: ask about "
+        "this document); the assistant gets no other tools or documents.",
+    )
 
 
 class RunOut(ApiModel):

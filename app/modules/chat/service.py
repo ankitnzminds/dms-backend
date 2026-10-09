@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.adapters.llm.factory import get_llm
 from app.core.config import get_settings
-from app.core.errors import AppError, ConflictError, NotFoundError
+from app.core.errors import AppError, ConflictError, ForbiddenError, NotFoundError, ValidationFailed
 from app.db.enums import Action
 from app.db.models import AgentRun, ChatConversation, ChatMessage, PendingAction
 from app.modules.audit import service as audit
@@ -171,6 +171,15 @@ def post_message(
             "The assistant is still answering the previous message.", code="run_in_progress"
         )
 
+    if body.scope == "document":
+        if body.context_document_id is None:
+            raise ValidationFailed("context_document_id is required for a document chat.")
+        doc = authz.require_document(body.context_document_id, Action.PREVIEW)
+        if doc.classification in authz.share_blocked_classifications():
+            raise ForbiddenError(
+                "Documents with this classification cannot be sent to an AI provider.",
+                code="ai_blocked_by_classification",
+            )
     context: dict[str, str] = {}
     for key, rid, fetch in (
         (
@@ -192,7 +201,7 @@ def post_message(
         conversation_id=conversation_id,
         role="user",
         content=body.content.strip(),
-        blocks=[{"type": "context", **context}] if context else [],
+        blocks=[{"type": "context", **context, "scope": body.scope}] if context else [],
     )
     db.add(user_msg)
     run = AgentRun(
