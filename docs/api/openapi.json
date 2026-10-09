@@ -4871,6 +4871,89 @@
         "title": "ReleaseHoldIn",
         "type": "object"
       },
+      "ReportSummaryOut": {
+        "properties": {
+          "audit_events_by_outcome": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Audit Events By Outcome",
+            "type": "object"
+          },
+          "denied_attempts": {
+            "title": "Denied Attempts",
+            "type": "integer"
+          },
+          "documents_by_classification": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Documents By Classification",
+            "type": "object"
+          },
+          "documents_by_status": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Documents By Status",
+            "type": "object"
+          },
+          "legal_holds": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Legal Holds",
+            "type": "object"
+          },
+          "period_days": {
+            "title": "Period Days",
+            "type": "integer"
+          },
+          "retention_policies_enabled": {
+            "title": "Retention Policies Enabled",
+            "type": "integer"
+          },
+          "shares": {
+            "$ref": "#/components/schemas/SharesSummary"
+          },
+          "signature_requests": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Signature Requests",
+            "type": "object"
+          },
+          "top_actions": {
+            "items": {
+              "$ref": "#/components/schemas/TopAction"
+            },
+            "title": "Top Actions",
+            "type": "array"
+          },
+          "workflow_runs": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Workflow Runs",
+            "type": "object"
+          }
+        },
+        "required": [
+          "period_days",
+          "documents_by_classification",
+          "documents_by_status",
+          "shares",
+          "legal_holds",
+          "retention_policies_enabled",
+          "workflow_runs",
+          "signature_requests",
+          "audit_events_by_outcome",
+          "top_actions",
+          "denied_attempts"
+        ],
+        "title": "ReportSummaryOut",
+        "type": "object"
+      },
       "RestoreRequest": {
         "properties": {
           "new_name": {
@@ -5358,6 +5441,34 @@
           "recipients"
         ],
         "title": "ShareOut",
+        "type": "object"
+      },
+      "SharesSummary": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "integer"
+          },
+          "expired": {
+            "title": "Expired",
+            "type": "integer"
+          },
+          "revoked": {
+            "title": "Revoked",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "revoked",
+          "expired",
+          "active"
+        ],
+        "title": "SharesSummary",
         "type": "object"
       },
       "SignatureArtifactOut": {
@@ -6221,6 +6332,24 @@
           "comment"
         ],
         "title": "TaskOut",
+        "type": "object"
+      },
+      "TopAction": {
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "action",
+          "count"
+        ],
+        "title": "TopAction",
         "type": "object"
       },
       "TrashItem": {
@@ -10524,9 +10653,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Report Summary Api V1 Admin Reports Summary Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ReportSummaryOut"
                 }
               }
             },
@@ -17758,6 +17885,81 @@
         ]
       }
     },
+    "/api/v1/members/{user_id}": {
+      "get": {
+        "operationId": "get_member_api_v1_members__user_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserRef"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Name/e-mail of one active member of your organization (to label IDs)",
+        "tags": [
+          "identity"
+        ]
+      }
+    },
     "/api/v1/metadata-definitions": {
       "get": {
         "operationId": "list_definitions_api_v1_metadata_definitions_get",
@@ -20792,7 +20994,8 @@
                     "approved",
                     "rejected",
                     "cancelled",
-                    "skipped"
+                    "skipped",
+                    "all"
                   ],
                   "type": "string"
                 },
@@ -20893,6 +21096,91 @@
           }
         },
         "summary": "My approval tasks",
+        "tags": [
+          "workflows"
+        ]
+      }
+    },
+    "/api/v1/workflow-tasks/{task_id}": {
+      "get": {
+        "operationId": "get_task_api_v1_workflow_tasks__task_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "One task I may see",
         "tags": [
           "workflows"
         ]
