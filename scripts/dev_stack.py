@@ -24,6 +24,25 @@ DEV_DIR = ROOT / os.environ.get("DEV_STACK_DIR", ".dev")
 PORT = os.environ.get("DEV_STACK_PORT", "8000")
 
 
+def _dotenv() -> dict[str, str]:
+    """Plain KEY=VALUE lines of .env, so the dev stack honours the same file the API reads."""
+    out: dict[str, str] = {}
+    path = ROOT / ".env"
+    if path.is_file():
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if "=" in line and not line.lstrip().startswith("#"):
+                key, _, value = line.partition("=")
+                out[key.strip()] = value.strip()
+    return out
+
+
+_ENV = _dotenv()
+
+
+def _cfg(key: str, default: str) -> str:
+    return os.environ.get(key) or _ENV.get(key) or default
+
+
 def main() -> int:
     import pgserver
 
@@ -34,19 +53,19 @@ def main() -> int:
         "APP_ENV": "development",
         "DATABASE_URL": server.get_uri(),
         "AUTH_PROVIDER": "local",
-        "LOCAL_JWT_SECRET": os.environ.get(
+        "LOCAL_JWT_SECRET": _cfg(
             "LOCAL_JWT_SECRET", "dev-only-local-jwt-secret-change-me-0123456789"
         ),
         "STORAGE_PROVIDER": "local",
         "LOCAL_STORAGE_PATH": str(DEV_DIR / "objects"),
         "MALWARE_SCANNER": "eicar",
-        "DOWNLOAD_SIGNING_SECRET": os.environ.get(
+        "DOWNLOAD_SIGNING_SECRET": _cfg(
             "DOWNLOAD_SIGNING_SECRET", "dev-only-download-secret-0123456789abcdef"
         ),
-        "CORS_ALLOWED_ORIGINS": os.environ.get("CORS_ALLOWED_ORIGINS", "http://localhost:3000"),
-        "PUBLIC_API_BASE_URL": os.environ.get("PUBLIC_API_BASE_URL", f"http://localhost:{PORT}"),
-        "FRAME_ANCESTORS": os.environ.get(
-            "FRAME_ANCESTORS", "http://localhost:3000,http://localhost:3100"
+        "CORS_ALLOWED_ORIGINS": _cfg("CORS_ALLOWED_ORIGINS", "http://localhost:3000"),
+        "PUBLIC_API_BASE_URL": _cfg("PUBLIC_API_BASE_URL", f"http://localhost:{PORT}"),
+        "FRAME_ANCESTORS": _cfg(
+            "FRAME_ANCESTORS", "http://localhost:3000,http://localhost:3001,http://localhost:3100"
         ),
         "PYTHONUTF8": "1",
     }
