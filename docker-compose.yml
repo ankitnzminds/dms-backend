@@ -1,0 +1,61 @@
+# Local development stack (NOT for production). Everything runs with local-only providers:
+#   docker compose up --build
+# API: http://localhost:8000 (docs at /docs)  - PostgreSQL on localhost:5433
+# For a no-Docker alternative see scripts/dev_stack.py.
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: dms
+      POSTGRES_PASSWORD: dms-local-only
+      POSTGRES_DB: dms
+    ports: ["5433:5432"]
+    volumes: ["dbdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dms -d dms"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    build: .
+    command: ["python", "-m", "app.cli", "migrate"]
+    environment: &env
+      APP_ENV: development
+      DATABASE_URL: postgresql://dms:dms-local-only@db:5432/dms
+      AUTH_PROVIDER: local
+      LOCAL_JWT_SECRET: dev-only-local-jwt-secret-change-me-0123456789
+      STORAGE_PROVIDER: local
+      LOCAL_STORAGE_PATH: /data/objects
+      MALWARE_SCANNER: clamd
+      CLAMD_HOST: clamav
+      DOWNLOAD_SIGNING_SECRET: dev-only-download-secret-0123456789abcdef
+      CORS_ALLOWED_ORIGINS: http://localhost:3000
+      PUBLIC_API_BASE_URL: http://localhost:8000
+    depends_on:
+      db: {condition: service_healthy}
+
+  api:
+    build: .
+    environment: *env
+    ports: ["8000:8000"]
+    volumes: ["objects:/data/objects"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+
+  worker:
+    build: .
+    command: ["python", "-m", "app.cli", "worker"]
+    environment: *env
+    volumes: ["objects:/data/objects"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+
+  clamav:
+    image: clamav/clamav:stable
+    ports: ["3310:3310"]
+    profiles: ["scan"]
+
+volumes:
+  dbdata:
+  objects:

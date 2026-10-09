@@ -1,0 +1,39 @@
+"""Shared API schemas."""
+
+from __future__ import annotations
+
+import uuid
+from typing import Generic, TypeVar
+
+from pydantic import BaseModel, ConfigDict, Field
+
+T = TypeVar("T")
+
+
+class ApiModel(BaseModel):
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+
+class Page(ApiModel, Generic[T]):
+    items: list[T]
+    total: int = Field(description="Total items visible to the caller (after authorization).")
+    limit: int
+    offset: int
+
+
+class BreadcrumbSegmentOut(ApiModel):
+    folder_id: uuid.UUID | None = Field(
+        None, description="Present only if the caller may open this folder. Names are context only."
+    )
+    name: str | None = Field(None, description="Null when masked by organization policy.")
+    navigable: bool
+
+
+class UserRef(ApiModel):
+    id: uuid.UUID
+    display_name: str | None = None
+    email: str | None = None
+
+
+class Message(ApiModel):
+    message: str
