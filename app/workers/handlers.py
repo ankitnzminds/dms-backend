@@ -100,10 +100,18 @@ def _apply_scan_result(
     version = db.get(DocumentVersion, version_id)
     assert version is not None
     # Lock order: document, then version (matches the upload/restore paths).
-    doc = db.scalar(select(Document).where(Document.id == version.document_id).with_for_update())
+    doc = db.scalar(
+        select(Document)
+        .where(Document.id == version.document_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
     assert doc is not None
     version = db.scalar(
-        select(DocumentVersion).where(DocumentVersion.id == version_id).with_for_update()
+        select(DocumentVersion)
+        .where(DocumentVersion.id == version_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
     )
     assert version is not None
     if version.scan_status != ScanStatus.PENDING.value:
@@ -318,6 +326,78 @@ def handle_delete_objects(db: Session, event: OutboxEvent, ctx: WorkerContext) -
     run(db, event.payload, get_storage_provider)
 
 
+def handle_workflow_task_assigned(db: Session, event: OutboxEvent, ctx: WorkerContext) -> None:
+    from app.db.models import WorkflowRun, WorkflowTask
+
+    task = db.get(WorkflowTask, event.aggregate_id)
+    if task is None or task.status != "pending" or task.organization_id != event.organization_id:
+        return
+    run = db.get(WorkflowRun, task.run_id)
+    doc = db.get(Document, task.document_id)
+    if run is None or doc is None:
+        return
+    notifications.create(
+        db,
+        organization_id=task.organization_id,
+        user_id=task.assignee_id,
+        type_="workflow.task_assigned",
+        title=f'Approval requested: "{doc.name}"',
+        body=f'{_display(db, run.started_by)} asked you to review step "{task.step_name}".',
+        resource_type="workflow_task",
+        resource_id=task.id,
+        source_event_id=event.id,
+    )
+    db.commit()
+
+
+def handle_workflow_finished(db: Session, event: OutboxEvent, ctx: WorkerContext) -> None:
+    from app.db.models import WorkflowRun
+
+    run = db.get(WorkflowRun, event.aggregate_id)
+    if run is None or run.organization_id != event.organization_id:
+        return
+    doc = db.get(Document, run.document_id)
+    state = event.payload.get("state", run.state)
+    notifications.create(
+        db,
+        organization_id=run.organization_id,
+        user_id=run.started_by,
+        type_=f"workflow.{state}",
+        title=f'Approval {state}: "{doc.name if doc else "document"}"',
+        body=run.outcome_comment,
+        resource_type="workflow_run",
+        resource_id=run.id,
+        source_event_id=event.id,
+    )
+    db.commit()
+
+
+def handle_workflow_task_overdue(db: Session, event: OutboxEvent, ctx: WorkerContext) -> None:
+    from app.db.models import WorkflowRun, WorkflowTask
+
+    task = db.get(WorkflowTask, event.aggregate_id)
+    if task is None or task.status != "pending":
+        return
+    run = db.get(WorkflowRun, task.run_id)
+    recipients = {task.assignee_id}
+    if task.escalate_to_id:
+        recipients.add(task.escalate_to_id)
+    if run:
+        recipients.add(run.started_by)
+    for uid in recipients:
+        notifications.create(
+            db,
+            organization_id=task.organization_id,
+            user_id=uid,
+            type_="workflow.task_overdue",
+            title=f'Approval overdue: step "{task.step_name}"',
+            resource_type="workflow_task",
+            resource_id=task.id,
+            source_event_id=event.id,
+        )
+    db.commit()
+
+
 def handle_extract(db: Session, event: OutboxEvent, ctx: WorkerContext) -> None:
     from app.modules.processing.service import process_version
 
@@ -325,6 +405,9 @@ def handle_extract(db: Session, event: OutboxEvent, ctx: WorkerContext) -> None:
 
 
 HANDLERS: dict[str, Handler] = {
+    "workflow.task_assigned": handle_workflow_task_assigned,
+    "workflow.finished": handle_workflow_finished,
+    "workflow.task_overdue": handle_workflow_task_overdue,
     "document_version.extract": handle_extract,
     "storage.delete_objects": handle_delete_objects,
     "document_version.uploaded": handle_version_uploaded,

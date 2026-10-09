@@ -227,7 +227,12 @@ def _delete_document_rows(db: Session, doc: Document) -> list[dict[str, str]]:
     db.delete(doc)
     db.flush()
     if total:
-        org = db.scalar(select(Organization).where(Organization.id == org_id).with_for_update())
+        org = db.scalar(
+            select(Organization)
+            .where(Organization.id == org_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
         assert org is not None
         stmt = (
             pg_insert(QuotaLedgerEntry)

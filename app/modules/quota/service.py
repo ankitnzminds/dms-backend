@@ -23,7 +23,10 @@ from app.db.models import DocumentVersion, Organization, QuotaLedgerEntry, Uploa
 
 def _lock_org(db: Session, organization_id: uuid.UUID) -> Organization:
     org = db.scalar(
-        select(Organization).where(Organization.id == organization_id).with_for_update()
+        select(Organization)
+        .where(Organization.id == organization_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
     )
     if org is None:
         raise RuntimeError("organization vanished")

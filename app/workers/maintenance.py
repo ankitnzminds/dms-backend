@@ -31,6 +31,7 @@ def record_expired_shares(db: Session, limit: int = 200) -> int:
             )
             .limit(limit)
             .with_for_update(skip_locked=True)
+            .execution_options(populate_existing=True)
         )
     )
     for share in shares:
@@ -63,6 +64,10 @@ def run_maintenance(factory: sessionmaker[Session]) -> dict[str, int]:
     with factory() as db:
         summary["expired_shares_recorded"] = record_expired_shares(db)
     from app.modules.governance.service import purge_expired_trash
+    from app.modules.workflows.service import process_overdue_tasks
+
+    with factory() as db:
+        summary["overdue_tasks_notified"] = process_overdue_tasks(db)
 
     with factory() as db:
         summary.update({f"trash_{k}": v for k, v in purge_expired_trash(db).items()})

@@ -42,6 +42,7 @@ def find_or_bind_user(db: Session, identity: VerifiedIdentity) -> User:
             select(User)
             .where(User.email == identity.email, User.external_subject.is_(None))
             .with_for_update()
+            .execution_options(populate_existing=True)
         )
         if invited is not None and invited.status != UserStatus.DISABLED.value:
             invited.identity_provider = identity.provider

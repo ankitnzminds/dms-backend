@@ -44,6 +44,7 @@ from app.db.models import (
     PermissionGrant,
     ShareGrant,
     ShareRecipient,
+    WorkflowTask,
 )
 from app.modules.audit import service as audit
 from app.modules.authorization.actions import ALL_ACTIONS, OWNER_ACTIONS, expand_actions
@@ -220,6 +221,19 @@ class AuthorizationService:
             )
         ).all()
 
+        task_docs: set[uuid.UUID] = set()
+        if doc_ids:
+            task_docs = set(
+                self.db.scalars(
+                    select(WorkflowTask.document_id).where(
+                        WorkflowTask.organization_id == org,
+                        WorkflowTask.assignee_id == p.user_id,
+                        WorkflowTask.status == "pending",
+                        WorkflowTask.document_id.in_(doc_ids),
+                    )
+                )
+            )
+
         folder_perm: dict[uuid.UUID, list[PermissionGrant]] = defaultdict(list)
         doc_perm: dict[uuid.UUID, list[PermissionGrant]] = defaultdict(list)
         for g in perm_grants:
@@ -260,6 +274,8 @@ class AuthorizationService:
                 acc.update(doc_share.get(doc.id, ()))
             if doc.owner_id == p.user_id:
                 acc.update(OWNER_ACTIONS)
+            if doc.id in task_docs:  # reviewers may read what they were asked to approve
+                acc.update((Action.VIEW.value, Action.PREVIEW.value, Action.DOWNLOAD.value))
             effective = expand_actions(acc)
             # Documents that have not passed required checks are visible to their owner only.
             if doc.status != DocumentStatus.AVAILABLE.value and doc.owner_id != p.user_id:

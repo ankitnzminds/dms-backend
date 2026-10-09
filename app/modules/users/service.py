@@ -165,6 +165,7 @@ def update_member(
         .join(User, User.id == Membership.user_id)
         .where(Membership.organization_id == p.organization_id, Membership.user_id == user_id)
         .with_for_update(of=Membership)
+        .execution_options(populate_existing=True)
     ).first()
     if row is None:
         raise NotFoundError("Member not found.")

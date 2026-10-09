@@ -215,6 +215,9 @@ def delete_document(db: Session, authz: AuthorizationService, document_id: uuid.
     from app.modules.governance.service import assert_deletable
 
     assert_deletable(db, p.organization_id, documents=[doc], folders=[])
+    from app.modules.workflows.service import cancel_runs_for_document
+
+    cancel_runs_for_document(db, doc.id, p.organization_id, p.user_id)
     now = datetime.now(UTC)
     doc.deleted_at, doc.deleted_by, doc.delete_batch_id = now, p.user_id, uuid.uuid4()
     audit.record(
@@ -336,6 +339,7 @@ def _new_version_from_existing(
             select(Document)
             .where(Document.id == doc.id, Document.organization_id == p.organization_id)
             .with_for_update()
+            .execution_options(populate_existing=True)
         )
         assert locked is not None
         locked.latest_version_number += 1

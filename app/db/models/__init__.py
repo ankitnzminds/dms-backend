@@ -14,8 +14,20 @@ from app.db.models.platform import (
 from app.db.models.processing import DocumentDerivative, DocumentText, MetadataDefinition
 from app.db.models.tree import Document, DocumentVersion, Folder, StorageLocation
 from app.db.models.uploads import QuotaLedgerEntry, UploadSession
+from app.db.models.workflows import (
+    ApprovalAction,
+    WorkflowDefinition,
+    WorkflowDefinitionVersion,
+    WorkflowRun,
+    WorkflowTask,
+)
 
 __all__ = [
+    "ApprovalAction",
+    "WorkflowDefinition",
+    "WorkflowDefinitionVersion",
+    "WorkflowRun",
+    "WorkflowTask",
     "AuditEvent",
     "Document",
     "DocumentDerivative",

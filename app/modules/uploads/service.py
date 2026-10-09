@@ -365,7 +365,10 @@ def store_content(
         raise DependencyUnavailableError("Storage rejected the upload. Please retry.") from exc
 
     locked = db.scalar(
-        select(UploadSession).where(UploadSession.id == session_id).with_for_update()
+        select(UploadSession)
+        .where(UploadSession.id == session_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
     )
     assert locked is not None
     if locked.state != UploadState.INITIATED.value:  # cancelled/expired concurrently
@@ -387,6 +390,7 @@ def finalize(
         select(UploadSession)
         .where(UploadSession.id == session_id, UploadSession.organization_id == p.organization_id)
         .with_for_update()
+        .execution_options(populate_existing=True)
     )
     if session is None or session.created_by != p.user_id:
         raise NotFoundError("Upload session not found.")
@@ -415,6 +419,7 @@ def finalize(
                     Document.organization_id == p.organization_id,
                 )
                 .with_for_update()
+                .execution_options(populate_existing=True)
             )
             if doc is None or doc.deleted_at is not None:
                 raise NotFoundError("Document not found.")
@@ -520,6 +525,7 @@ def expire_stale_sessions(db: Session, *, limit: int = 100) -> int:
             .order_by(UploadSession.expires_at)
             .limit(limit)
             .with_for_update(skip_locked=True)
+            .execution_options(populate_existing=True)
         )
     )
     for session in stale:
