@@ -2,8 +2,8 @@
 
 Status vocabulary: **Verified** = automated tests pass against a real PostgreSQL (and, where noted,
 a real external service); **Built, not verified live** = implemented and unit/integration-tested
-against fakes only; **Not built** = absent. Test counts are from the last full run (367 passed,
-2 opt-in live tests skipped, 90 % line coverage).
+against fakes only; **Not built** = absent. Test counts are from the last full run (384 passed,
+2 opt-in live tests skipped).
 
 ## Capabilities
 
@@ -23,6 +23,10 @@ against fakes only; **Not built** = absent. Test counts are from the last full r
 | Directory provisioning | Static verified; Entra/LDAP **mock-only** | `modules/directory` → `test_directory` | never connected to real Entra/LDAP |
 | Notifications (in-app, prefs, e-mail via outbox) | Verified; SMTP path not exercised against a real server | `modules/notifications` | |
 | Reports/audit export | Verified | `modules/reports`, `audit` | |
+| Comments (files + folders, threads, share-aware) | Verified | `modules/comments` → `test_comments` (6) | plain text only; no @mentions |
+| Activity feed per item | Verified | `modules/activity` → `test_activity_auth_search` | derived from the audit log; access/view events only for managers |
+| Auth lifecycle (dev password login, sign-out, sign-out everywhere, revocation) | Verified for the local provider | `api/v1/dev.py`, `me.py` → `test_activity_auth_search::TestAuth` | **Supabase email/password flow not verified live** |
+| Content search (prefix, any-term fallback, phrases) | Verified | `modules/search` → `test_activity_auth_search::TestAdvancedSearch` | no stemming/typo tolerance, no semantic search |
 | Access requests | Verified | `modules/access_requests` → `test_chat::*access*` | |
 | Agentic chatbot (tools, retrieval, pending actions, history re-filtering) | Verified with a recording fake model; **smoke-verified with the real Groq model** (`test_chat_live`) | `modules/chat` → `test_chat` (28 tests) | no systematic model-quality eval; no vector search; polling instead of token streaming; see `docs/security/chatbot-security.md` |
 | Single-document AI helpers (summary, Q&A, metadata suggestions) | Verified with fake; Groq smoke verified | `modules/ai` → `test_ai` | |
