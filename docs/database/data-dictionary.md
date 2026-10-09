@@ -5,7 +5,7 @@ All tables live in schema `dms`, have row-level security enabled (deny-all for A
 reachable only through the backend. See `docs/database/erd.md` for relationships and
 `docs/security/tenant-isolation.md` for the tenancy rules.
 
-48 tables.
+49 tables.
 
 ## `access_requests`
 
@@ -28,9 +28,9 @@ Tenant-scoped: **yes**
 
 Constraints and indexes:
 
-- check `ck_access_requests_requests_resource_type`: `resource_type IN ('document', 'folder')`
 - check `ck_access_requests_requests_status`: `status IN ('pending', 'approved', 'rejected', 'cancelled')`
 - check `ck_access_requests_actions`: `cardinality(requested_actions) > 0`
+- check `ck_access_requests_requests_resource_type`: `resource_type IN ('document', 'folder')`
 - index `ix_access_requests_resource`
 - unique index `uq_access_requests_open` where `status = 'pending'`
 
@@ -55,9 +55,9 @@ Tenant-scoped: **yes**
 
 Constraints and indexes:
 
-- unique `uq_agent_runs_id_org` (id, organization_id)
 - composite FK `fk_agent_runs_conversation_org` (conversation_id, organization_id) - tenant-consistent
 - check `ck_agent_runs_runs_status`: `status IN ('queued', 'running', 'awaiting_confirmation', 'completed', 'failed', 'cancelled')`
+- unique `uq_agent_runs_id_org` (id, organization_id)
 - index `ix_agent_runs_conversation`
 
 ## `approval_actions`
@@ -154,6 +154,31 @@ Constraints and indexes:
 - check `ck_chat_messages_messages_role`: `role IN ('user', 'assistant')`
 - index `ix_chat_messages_conversation`
 
+## `comments`
+
+Tenant-scoped: **yes**
+
+| column | type | null | default | notes |
+|---|---|---|---|---|
+| `id` | CHAR(32) | no |  | PK |
+| `organization_id` | CHAR(32) | no |  | FK -> organizations.id, comments.organization_id |
+| `resource_type` | VARCHAR(16) | no |  |  |
+| `resource_id` | CHAR(32) | no |  |  |
+| `parent_id` | CHAR(32) | yes |  | FK -> comments.id |
+| `author_id` | CHAR(32) | yes |  | FK -> users.id |
+| `body` | TEXT | no |  |  |
+| `created_at` | DATETIME | no | now() |  |
+| `edited_at` | DATETIME | yes |  |  |
+| `deleted_at` | DATETIME | yes |  |  |
+
+Constraints and indexes:
+
+- composite FK `fk_comments_parent_org` (parent_id, organization_id) - tenant-consistent
+- check `ck_comments_body_length`: `char_length(body) BETWEEN 1 AND 4000`
+- check `ck_comments_resource_type`: `resource_type IN ('document', 'folder')`
+- unique `uq_comments_id_org` (id, organization_id)
+- index `ix_comments_resource`
+
 ## `directory_group_links`
 
 Tenant-scoped: **yes**
@@ -168,9 +193,9 @@ Tenant-scoped: **yes**
 
 Constraints and indexes:
 
+- composite FK `fk_directory_group_links_group_org` (group_id, organization_id) - tenant-consistent
 - composite FK `fk_directory_group_links_source_org` (source_id, organization_id) - tenant-consistent
 - unique `uq_directory_group_links_external` (source_id, external_id)
-- composite FK `fk_directory_group_links_group_org` (group_id, organization_id) - tenant-consistent
 - unique `uq_directory_group_links_group` (group_id)
 
 ## `directory_sources`
@@ -193,9 +218,9 @@ Tenant-scoped: **yes**
 
 Constraints and indexes:
 
-- check `ck_directory_sources_kind`: `kind IN ('static', 'entra', 'ldap')`
 - unique `uq_directory_sources_name` (organization_id, name)
 - unique `uq_directory_sources_id_org` (id, organization_id)
+- check `ck_directory_sources_kind`: `kind IN ('static', 'entra', 'ldap')`
 
 ## `directory_sync_runs`
 
@@ -236,9 +261,9 @@ Tenant-scoped: **yes**
 
 Constraints and indexes:
 
+- unique `uq_directory_user_links_external` (source_id, external_id)
 - unique `uq_directory_user_links_user` (source_id, user_id)
 - composite FK `fk_directory_user_links_source_org` (source_id, organization_id) - tenant-consistent
-- unique `uq_directory_user_links_external` (source_id, external_id)
 
 ## `document_derivatives`
 
@@ -258,9 +283,9 @@ Tenant-scoped: **yes**
 
 Constraints and indexes:
 
+- check `ck_document_derivatives_kind`: `kind IN ('thumbnail')`
 - unique `uq_document_derivatives_kind` (version_id, kind)
 - composite FK `fk_document_derivatives_version_org` (version_id, organization_id) - tenant-consistent
-- check `ck_document_derivatives_kind`: `kind IN ('thumbnail')`
 
 ## `document_stars`
 
@@ -309,7 +334,7 @@ Tenant-scoped: **yes**
 | column | type | null | default | notes |
 |---|---|---|---|---|
 | `id` | CHAR(32) | no |  | PK |
-| `organization_id` | CHAR(32) | no |  | FK -> organizations.id, documents.organization_id, storage_locations.organization_id |
+| `organization_id` | CHAR(32) | no |  | FK -> documents.organization_id, organizations.id, storage_locations.organization_id |
 | `document_id` | CHAR(32) | no |  | FK -> documents.id |
 | `version_number` | INTEGER | no |  |  |
 | `storage_location_id` | CHAR(32) | no |  | FK -> storage_locations.id |
@@ -328,15 +353,15 @@ Tenant-scoped: **yes**
 
 Constraints and indexes:
 
+- check `ck_document_versions_size_nonneg`: `size_bytes >= 0`
+- unique `uq_document_versions_id_org` (id, organization_id)
+- unique `uq_document_versions_doc_number` (document_id, version_number)
 - unique `uq_document_versions_object` (storage_location_id, object_key)
 - check `ck_document_versions_number_positive`: `version_number >= 1`
 - composite FK `fk_document_versions_document_org` (document_id, organization_id) - tenant-consistent
 - composite FK `fk_document_versions_location_org` (storage_location_id, organization_id) - tenant-consistent
 - check `ck_document_versions_sha256_hex`: `sha256 ~ '^[0-9a-f]{64}$'`
 - check `ck_document_versions_scan_status`: `scan_status IN ('pending', 'clean', 'infected', 'error')`
-- check `ck_document_versions_size_nonneg`: `size_bytes >= 0`
-- unique `uq_document_versions_id_org` (id, organization_id)
-- unique `uq_document_versions_doc_number` (document_id, version_number)
 - index `ix_document_versions_org_scan`
 
 ## `documents`
@@ -346,7 +371,7 @@ Tenant-scoped: **yes**
 | column | type | null | default | notes |
 |---|---|---|---|---|
 | `id` | CHAR(32) | no |  | PK |
-| `organization_id` | CHAR(32) | no |  | FK -> organizations.id, document_versions.organization_id, folders.organization_id |
+| `organization_id` | CHAR(32) | no |  | FK -> folders.organization_id, organizations.id, document_versions.organization_id |
 | `folder_id` | CHAR(32) | no |  | FK -> folders.id |
 | `name` | VARCHAR(255) | no |  |  |
 | `owner_id` | CHAR(32) | yes |  | FK -> users.id |
@@ -369,13 +394,13 @@ Tenant-scoped: **yes**
 
 Constraints and indexes:
 
-- unique `uq_documents_id_org` (id, organization_id)
-- check `ck_documents_name_nonempty`: `length(btrim(name)) > 0`
 - composite FK `fk_documents_folder_org` (folder_id, organization_id) - tenant-consistent
-- composite FK `fk_documents_current_version_org` (current_version_id, organization_id) - tenant-consistent
 - check `ck_documents_name_no_separators`: `name !~ '[/\\]'`
+- composite FK `fk_documents_current_version_org` (current_version_id, organization_id) - tenant-consistent
 - check `ck_documents_status`: `status IN ('processing', 'available', 'quarantined', 'failed')`
 - check `ck_documents_latest_nonneg`: `latest_version_number >= 0`
+- unique `uq_documents_id_org` (id, organization_id)
+- check `ck_documents_name_nonempty`: `length(btrim(name)) > 0`
 - index `ix_documents_delete_batch` where `delete_batch_id IS NOT NULL`
 - index `ix_documents_folder`
 - index `ix_documents_owner`
@@ -419,11 +444,11 @@ Tenant-scoped: **yes**
 
 Constraints and indexes:
 
+- composite FK `fk_folders_parent_org` (parent_folder_id, organization_id) - tenant-consistent
+- check `ck_folders_name_nonempty`: `length(btrim(name)) > 0`
 - check `ck_folders_name_no_separators`: `name !~ '[/\\]'`
 - unique `uq_folders_id_org` (id, organization_id)
 - check `ck_folders_not_own_parent`: `parent_folder_id IS NULL OR parent_folder_id <> id`
-- check `ck_folders_name_nonempty`: `length(btrim(name)) > 0`
-- composite FK `fk_folders_parent_org` (parent_folder_id, organization_id) - tenant-consistent
 - index `ix_folders_delete_batch` where `delete_batch_id IS NOT NULL`
 - index `ix_folders_parent`
 - unique index `uq_folders_one_root` where `parent_folder_id IS NULL`
@@ -462,8 +487,8 @@ Tenant-scoped: **yes**
 
 Constraints and indexes:
 
-- check `ck_groups_kind`: `kind IN ('group', 'department', 'team')`
 - unique `uq_groups_id_org` (id, organization_id)
+- check `ck_groups_kind`: `kind IN ('group', 'department', 'team')`
 - unique index `uq_groups_org_external` where `external_id IS NOT NULL`
 - unique index `uq_groups_org_name`
 
@@ -483,9 +508,9 @@ Tenant-scoped: **yes**
 
 Constraints and indexes:
 
+- check `ck_legal_hold_items_resource_type`: `resource_type IN ('folder', 'document')`
 - unique `uq_legal_hold_items` (hold_id, resource_type, resource_id)
 - composite FK `fk_legal_hold_items_hold_org` (hold_id, organization_id) - tenant-consistent
-- check `ck_legal_hold_items_resource_type`: `resource_type IN ('folder', 'document')`
 - index `ix_legal_hold_items_resource`
 
 ## `legal_holds`
@@ -507,8 +532,8 @@ Tenant-scoped: **yes**
 
 Constraints and indexes:
 
-- unique `uq_legal_holds_id_org` (id, organization_id)
 - check `ck_legal_holds_status`: `status IN ('active', 'released')`
+- unique `uq_legal_holds_id_org` (id, organization_id)
 - index `ix_legal_holds_org_status`
 
 ## `memberships`
@@ -528,8 +553,8 @@ Tenant-scoped: **yes**
 
 Constraints and indexes:
 
-- check `ck_memberships_status`: `status IN ('invited', 'active', 'suspended', 'removed')`
 - unique `uq_memberships_org_user` (organization_id, user_id)
+- check `ck_memberships_status`: `status IN ('invited', 'active', 'suspended', 'removed')`
 - check `ck_memberships_role`: `role IN ('owner', 'admin', 'member', 'auditor')`
 - index `ix_memberships_user`
 
@@ -613,11 +638,11 @@ Tenant-scoped: **no (global)**
 
 Constraints and indexes:
 
+- check `ck_organizations_reserved_nonneg`: `quota_reserved_bytes >= 0`
 - unique `uq_organizations_slug` (slug)
 - check `ck_organizations_quota_nonneg`: `quota_bytes IS NULL OR quota_bytes >= 0`
 - check `ck_organizations_status`: `status IN ('active', 'suspended', 'offboarding', 'deletion_requested')`
 - check `ck_organizations_used_nonneg`: `quota_used_bytes >= 0`
-- check `ck_organizations_reserved_nonneg`: `quota_reserved_bytes >= 0`
 
 ## `outbox_events`
 
@@ -670,8 +695,8 @@ Tenant-scoped: **yes**
 
 Constraints and indexes:
 
-- composite FK `fk_pending_actions_conversation_org` (conversation_id, organization_id) - tenant-consistent
 - check `ck_pending_actions_actions_status`: `status IN ('pending', 'confirmed', 'executed', 'partially_executed', 'failed', 'cancelled', 'expired', 'invali`
+- composite FK `fk_pending_actions_conversation_org` (conversation_id, organization_id) - tenant-consistent
 - index `ix_pending_actions_conversation`
 
 ## `permission_grants`
@@ -697,9 +722,9 @@ Tenant-scoped: **yes**
 Constraints and indexes:
 
 - check `ck_permission_grants_resource_type`: `resource_type IN ('folder', 'document')`
+- check `ck_permission_grants_subject_type`: `subject_type IN ('user', 'group', 'organization')`
 - check `ck_permission_grants_subject_id_matches_type`: `(subject_type = 'organization') = (subject_id IS NULL)`
 - check `ck_permission_grants_actions_nonempty`: `cardinality(actions) > 0`
-- check `ck_permission_grants_subject_type`: `subject_type IN ('user', 'group', 'organization')`
 - index `ix_permission_grants_resource`
 - index `ix_permission_grants_subject`
 
@@ -797,9 +822,9 @@ Tenant-scoped: **yes**
 
 Constraints and indexes:
 
+- check `ck_share_grants_resource_type`: `resource_type IN ('folder', 'document')`
 - unique `uq_share_grants_id_org` (id, organization_id)
 - check `ck_share_grants_actions_nonempty`: `cardinality(actions) > 0`
-- check `ck_share_grants_resource_type`: `resource_type IN ('folder', 'document')`
 - index `ix_share_grants_active_expiry` where `revoked_at IS NULL`
 - index `ix_share_grants_creator`
 - index `ix_share_grants_resource`
@@ -819,9 +844,9 @@ Tenant-scoped: **yes**
 
 Constraints and indexes:
 
+- unique `uq_share_recipients_unique` (share_grant_id, recipient_type, recipient_id)
 - composite FK `fk_share_recipients_grant_org` (share_grant_id, organization_id) - tenant-consistent
 - check `ck_share_recipients_recipient_type`: `recipient_type IN ('user', 'group')`
-- unique `uq_share_recipients_unique` (share_grant_id, recipient_type, recipient_id)
 - index `ix_share_recipients_lookup`
 
 ## `signature_events`
@@ -845,8 +870,8 @@ Tenant-scoped: **yes**
 
 Constraints and indexes:
 
-- check `ck_signature_events_status`: `status IN ('received', 'processed', 'ignored', 'failed')`
 - unique `uq_signature_events_dedupe` (provider, provider_event_id)
+- check `ck_signature_events_status`: `status IN ('received', 'processed', 'ignored', 'failed')`
 - index `ix_signature_events_request`
 
 ## `signature_recipients`
@@ -870,9 +895,9 @@ Tenant-scoped: **yes**
 
 Constraints and indexes:
 
+- check `ck_signature_recipients_status`: `status IN ('pending', 'signed', 'declined')`
 - composite FK `fk_signature_recipients_request_org` (request_id, organization_id) - tenant-consistent
 - unique `uq_signature_recipients_email` (request_id, email)
-- check `ck_signature_recipients_status`: `status IN ('pending', 'signed', 'declined')`
 
 ## `signature_requests`
 
@@ -881,7 +906,7 @@ Tenant-scoped: **yes**
 | column | type | null | default | notes |
 |---|---|---|---|---|
 | `id` | CHAR(32) | no |  | PK |
-| `organization_id` | CHAR(32) | no |  | FK -> document_versions.organization_id, organizations.id, documents.organization_id |
+| `organization_id` | CHAR(32) | no |  | FK -> documents.organization_id, document_versions.organization_id, organizations.id |
 | `document_id` | CHAR(32) | no |  | FK -> documents.id |
 | `source_version_id` | CHAR(32) | no |  | FK -> document_versions.id |
 | `requested_by` | CHAR(32) | no |  | FK -> users.id |
@@ -923,9 +948,9 @@ Tenant-scoped: **yes**
 
 Constraints and indexes:
 
+- unique `uq_signed_artifacts_request` (request_id)
 - composite FK `fk_signed_artifacts_version_org` (version_id, organization_id) - tenant-consistent
 - composite FK `fk_signed_artifacts_request_org` (request_id, organization_id) - tenant-consistent
-- unique `uq_signed_artifacts_request` (request_id)
 
 ## `storage_locations`
 
@@ -946,8 +971,8 @@ Tenant-scoped: **yes**
 
 Constraints and indexes:
 
-- unique `uq_storage_locations_id_org` (id, organization_id)
 - check `ck_storage_locations_status`: `status IN ('active', 'disabled')`
+- unique `uq_storage_locations_id_org` (id, organization_id)
 - unique index `uq_storage_locations_default` where `is_default`
 
 ## `tool_executions`
@@ -969,8 +994,8 @@ Tenant-scoped: **yes**
 
 Constraints and indexes:
 
-- composite FK `fk_tool_executions_run_org` (run_id, organization_id) - tenant-consistent
 - check `ck_tool_executions_executions_decision`: `decision IN ('allow', 'deny', 'invalid')`
+- composite FK `fk_tool_executions_run_org` (run_id, organization_id) - tenant-consistent
 - index `ix_tool_executions_run`
 
 ## `upload_sessions`
@@ -980,7 +1005,7 @@ Tenant-scoped: **yes**
 | column | type | null | default | notes |
 |---|---|---|---|---|
 | `id` | CHAR(32) | no |  | PK |
-| `organization_id` | CHAR(32) | no |  | FK -> organizations.id, documents.organization_id, storage_locations.organization_id, folders.organization_id |
+| `organization_id` | CHAR(32) | no |  | FK -> storage_locations.organization_id, folders.organization_id, organizations.id, documents.organization_id |
 | `folder_id` | CHAR(32) | no |  | FK -> folders.id |
 | `document_id` | CHAR(32) | yes |  | FK -> documents.id |
 | `expected_latest_version` | INTEGER | yes |  |  |
@@ -1004,14 +1029,14 @@ Tenant-scoped: **yes**
 
 Constraints and indexes:
 
-- composite FK `fk_upload_sessions_location_org` (storage_location_id, organization_id) - tenant-consistent
-- composite FK `fk_upload_sessions_folder_org` (folder_id, organization_id) - tenant-consistent
-- composite FK `fk_upload_sessions_document_org` (document_id, organization_id) - tenant-consistent
 - check `ck_upload_sessions_declared_nonneg`: `declared_size >= 0`
 - check `ck_upload_sessions_state`: `state IN ('initiated', 'uploaded', 'finalized', 'failed', 'cancelled', 'expired')`
-- unique `uq_upload_sessions_object` (storage_location_id, object_key)
 - unique `uq_upload_sessions_id_org` (id, organization_id)
 - check `ck_upload_sessions_reserved_nonneg`: `reserved_bytes >= 0`
+- composite FK `fk_upload_sessions_location_org` (storage_location_id, organization_id) - tenant-consistent
+- composite FK `fk_upload_sessions_folder_org` (folder_id, organization_id) - tenant-consistent
+- unique `uq_upload_sessions_object` (storage_location_id, object_key)
+- composite FK `fk_upload_sessions_document_org` (document_id, organization_id) - tenant-consistent
 - index `ix_upload_sessions_state_expiry`
 - unique index `uq_upload_sessions_idem` where `idempotency_key IS NOT NULL`
 
@@ -1051,9 +1076,9 @@ Tenant-scoped: **no (global)**
 
 Constraints and indexes:
 
+- check `ck_users_email_lowercase`: `email = lower(email)`
 - check `ck_users_identity_pair`: `(external_subject IS NULL) = (identity_provider IS NULL)`
 - check `ck_users_status`: `status IN ('invited', 'active', 'disabled')`
-- check `ck_users_email_lowercase`: `email = lower(email)`
 - unique index `uq_users_email`
 - unique index `uq_users_identity` where `external_subject IS NOT NULL`
 
@@ -1073,10 +1098,10 @@ Tenant-scoped: **yes**
 
 Constraints and indexes:
 
-- unique `uq_wf_def_versions_number` (definition_id, version_number)
-- check `ck_workflow_definition_versions_steps_array`: `jsonb_typeof(steps) = 'array'`
 - composite FK `fk_wf_def_versions_definition_org` (definition_id, organization_id) - tenant-consistent
 - unique `uq_wf_def_versions_id_org` (id, organization_id)
+- unique `uq_wf_def_versions_number` (definition_id, version_number)
+- check `ck_workflow_definition_versions_steps_array`: `jsonb_typeof(steps) = 'array'`
 
 ## `workflow_definitions`
 
@@ -1104,7 +1129,7 @@ Tenant-scoped: **yes**
 | column | type | null | default | notes |
 |---|---|---|---|---|
 | `id` | CHAR(32) | no |  | PK |
-| `organization_id` | CHAR(32) | no |  | FK -> documents.organization_id, document_versions.organization_id, organizations.id, workflow_definition_versions.organization_id |
+| `organization_id` | CHAR(32) | no |  | FK -> workflow_definition_versions.organization_id, documents.organization_id, organizations.id, document_versions.organization_id |
 | `definition_version_id` | CHAR(32) | no |  | FK -> workflow_definition_versions.id |
 | `document_id` | CHAR(32) | no |  | FK -> documents.id |
 | `document_version_id` | CHAR(32) | no |  | FK -> document_versions.id |
@@ -1119,11 +1144,11 @@ Tenant-scoped: **yes**
 
 Constraints and indexes:
 
+- check `ck_workflow_runs_state`: `state IN ('in_progress', 'approved', 'rejected', 'cancelled')`
 - composite FK `fk_workflow_runs_version_org` (document_version_id, organization_id) - tenant-consistent
 - unique `uq_workflow_runs_id_org` (id, organization_id)
 - composite FK `fk_workflow_runs_def_version_org` (definition_version_id, organization_id) - tenant-consistent
 - composite FK `fk_workflow_runs_document_org` (document_id, organization_id) - tenant-consistent
-- check `ck_workflow_runs_state`: `state IN ('in_progress', 'approved', 'rejected', 'cancelled')`
 - index `ix_workflow_runs_org_state`
 - unique index `uq_workflow_runs_active_document` where `state = 'in_progress'`
 
@@ -1153,10 +1178,10 @@ Tenant-scoped: **yes**
 
 Constraints and indexes:
 
-- check `ck_workflow_tasks_status`: `status IN ('pending', 'approved', 'rejected', 'cancelled', 'skipped')`
+- unique `uq_workflow_tasks_id_org` (id, organization_id)
 - check `ck_workflow_tasks_rule`: `rule IN ('all', 'any')`
 - composite FK `fk_workflow_tasks_run_org` (run_id, organization_id) - tenant-consistent
-- unique `uq_workflow_tasks_id_org` (id, organization_id)
+- check `ck_workflow_tasks_status`: `status IN ('pending', 'approved', 'rejected', 'cancelled', 'skipped')`
 - index `ix_workflow_tasks_assignee_pending` where `status = 'pending'`
 - index `ix_workflow_tasks_due` where `status = 'pending'`
 - index `ix_workflow_tasks_run`

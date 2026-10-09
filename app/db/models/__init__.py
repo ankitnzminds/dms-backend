@@ -9,6 +9,7 @@ from app.db.models.chat import (
     PendingAction,
     ToolExecution,
 )
+from app.db.models.comments import Comment
 from app.db.models.directory import (
     DirectoryGroupLink,
     DirectorySource,
@@ -46,6 +47,7 @@ from app.db.models.workflows import (
 )
 
 __all__ = [
+    "Comment",
     "AccessRequest",
     "AgentRun",
     "ChatConversation",

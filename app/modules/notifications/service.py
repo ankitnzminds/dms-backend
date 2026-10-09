@@ -23,6 +23,7 @@ def group_of(type_: str) -> str:
     return {
         "share": "sharing",
         "access_request": "sharing",
+        "comment": "document",
         "workflow": "workflow",
         "signature": "signature",
         "document": "document",
