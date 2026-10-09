@@ -72,6 +72,11 @@ def run_maintenance(factory: sessionmaker[Session]) -> dict[str, int]:
 
     with factory() as db:
         summary["directory_syncs_queued"] = schedule_due(db)
+    from app.modules.automations import engine as automation_engine
+    from app.modules.automations import triggers as automation_triggers
+
+    summary["automation_runs_scheduled"] = len(automation_triggers.schedule_due(factory))
+    summary["automation_runs_resumed"] = len(automation_engine.resume_waiting(factory))
     with factory() as db:
         summary["overdue_tasks_notified"] = process_overdue_tasks(db)
 

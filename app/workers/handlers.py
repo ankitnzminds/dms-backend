@@ -479,7 +479,23 @@ def handle_extract(db: Session, event: OutboxEvent, ctx: WorkerContext) -> None:
     process_version(db, event.aggregate_id, ctx.settings)
 
 
+def handle_automation_event(db: Session, event: OutboxEvent, ctx: WorkerContext) -> None:
+    from app.db.session import get_sessionmaker
+    from app.modules.automations import triggers
+
+    triggers.handle_event(get_sessionmaker(), event.aggregate_id)
+
+
+def handle_automation_run(db: Session, event: OutboxEvent, ctx: WorkerContext) -> None:
+    from app.db.session import get_sessionmaker
+    from app.modules.automations import engine
+
+    engine.execute_run(get_sessionmaker(), event.aggregate_id)
+
+
 HANDLERS: dict[str, Handler] = {
+    "automation.event": handle_automation_event,
+    "automation.run": handle_automation_run,
     "notification.email": handle_notification_email,
     "directory.sync": handle_directory_sync,
     "signature.event": handle_signature_event,

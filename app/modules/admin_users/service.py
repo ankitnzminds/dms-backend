@@ -167,9 +167,7 @@ def _row(
     return row[0], row[1]
 
 
-def filtered(
-    p: Principal, q: str | None, status: str, source: str | None
-) -> Any:
+def filtered(p: Principal, q: str | None, status: str, source: str | None) -> Any:
     stmt = (
         select(Membership, User)
         .join(User, User.id == Membership.user_id)

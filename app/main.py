@@ -17,6 +17,7 @@ from app.api.v1 import (
     admin,
     admin_users,
     ai,
+    automations,
     chat,
     comments,
     directory,
@@ -117,6 +118,7 @@ def create_app() -> FastAPI:
         directory,
         admin,
         admin_users,
+        automations,
     ):
         v1.include_router(module.router)
     if settings.auth_provider == "local" and settings.app_env in ("development", "test"):

@@ -35,7 +35,7 @@ CATEGORIES: dict[str, tuple[str, ...]] = {
     "groups": ("group",),
     "policies": ("policy", "retention_policy", "metadata_definition"),
     "admin": ("org", "audit"),
-    "workflow": ("workflow",),
+    "workflow": ("workflow", "automation", "integrity"),
     "signatures": ("signature",),
     "integrations": ("directory", "directory_source"),
     "retention": ("legal_hold",),

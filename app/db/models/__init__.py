@@ -1,6 +1,12 @@
 """Import every model so Base.metadata is complete for Alembic and tests."""
 
 from app.db.models.access import PermissionGrant, ShareGrant, ShareRecipient
+from app.db.models.automations import (
+    Automation,
+    AutomationNodeRun,
+    AutomationRun,
+    AutomationVersion,
+)
 from app.db.models.chat import (
     AccessRequest,
     AgentRun,
@@ -49,6 +55,10 @@ from app.db.models.workflows import (
 )
 
 __all__ = [
+    "Automation",
+    "AutomationNodeRun",
+    "AutomationRun",
+    "AutomationVersion",
     "OfficeLock",
     "Policy",
     "Comment",

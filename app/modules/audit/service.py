@@ -50,6 +50,7 @@ def build_event(
     metadata: dict[str, Any] | None = None,
 ) -> AuditEvent:
     return AuditEvent(
+        id=uuid.uuid4(),
         organization_id=organization_id,
         actor_user_id=actor_user_id,
         action=action,
@@ -66,6 +67,9 @@ def build_event(
 def record(db: Session, **kwargs: Any) -> AuditEvent:
     event = build_event(**kwargs)
     db.add(event)
+    from app.modules.automations.triggers import dispatch  # lazy: avoids an import cycle
+
+    dispatch(db, event)
     return event
 
 
