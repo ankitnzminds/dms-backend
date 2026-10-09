@@ -64,7 +64,10 @@ def run_maintenance(factory: sessionmaker[Session]) -> dict[str, int]:
     with factory() as db:
         summary["expired_shares_recorded"] = record_expired_shares(db)
     from app.modules.governance.service import purge_expired_trash
+    from app.modules.signatures.service import reconcile_stale
     from app.modules.workflows.service import process_overdue_tasks
+
+    summary.update({f"signatures_{k}": v for k, v in reconcile_stale(factory).items()})
 
     with factory() as db:
         summary["overdue_tasks_notified"] = process_overdue_tasks(db)

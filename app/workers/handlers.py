@@ -398,6 +398,38 @@ def handle_workflow_task_overdue(db: Session, event: OutboxEvent, ctx: WorkerCon
     db.commit()
 
 
+def handle_signature_event(db: Session, event: OutboxEvent, ctx: WorkerContext) -> None:
+    from app.db.session import get_sessionmaker
+    from app.modules.signatures.service import process_event
+
+    process_event(get_sessionmaker(), event.aggregate_id)
+
+
+def handle_signature_finished(db: Session, event: OutboxEvent, ctx: WorkerContext) -> None:
+    from app.db.models import SignatureRequest
+
+    req = db.get(SignatureRequest, event.aggregate_id)
+    if req is None or req.organization_id != event.organization_id:
+        return
+    state = event.payload.get("state", req.state)
+    titles = {
+        "completed": "Signing completed",
+        "declined": "A signer declined",
+        "expired": "Signature request expired",
+    }
+    notifications.create(
+        db,
+        organization_id=req.organization_id,
+        user_id=req.requested_by,
+        type_=f"signature.{state}",
+        title=f'{titles.get(state, "Signature update")}: "{req.title}"',
+        resource_type="signature_request",
+        resource_id=req.id,
+        source_event_id=event.id,
+    )
+    db.commit()
+
+
 def handle_extract(db: Session, event: OutboxEvent, ctx: WorkerContext) -> None:
     from app.modules.processing.service import process_version
 
@@ -405,6 +437,8 @@ def handle_extract(db: Session, event: OutboxEvent, ctx: WorkerContext) -> None:
 
 
 HANDLERS: dict[str, Handler] = {
+    "signature.event": handle_signature_event,
+    "signature.finished": handle_signature_finished,
     "workflow.task_assigned": handle_workflow_task_assigned,
     "workflow.finished": handle_workflow_finished,
     "workflow.task_overdue": handle_workflow_task_overdue,

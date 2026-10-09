@@ -12,6 +12,12 @@ from app.db.models.platform import (
     RecentDocument,
 )
 from app.db.models.processing import DocumentDerivative, DocumentText, MetadataDefinition
+from app.db.models.signatures import (
+    SignatureEvent,
+    SignatureRecipient,
+    SignatureRequest,
+    SignedArtifact,
+)
 from app.db.models.tree import Document, DocumentVersion, Folder, StorageLocation
 from app.db.models.uploads import QuotaLedgerEntry, UploadSession
 from app.db.models.workflows import (
@@ -23,6 +29,10 @@ from app.db.models.workflows import (
 )
 
 __all__ = [
+    "SignatureEvent",
+    "SignatureRecipient",
+    "SignatureRequest",
+    "SignedArtifact",
     "ApprovalAction",
     "WorkflowDefinition",
     "WorkflowDefinitionVersion",

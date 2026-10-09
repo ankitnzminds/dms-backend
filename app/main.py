@@ -21,6 +21,7 @@ from app.api.v1 import (
     me,
     metadata,
     shares,
+    signatures,
     uploads,
     workflows,
 )
@@ -96,6 +97,7 @@ def create_app() -> FastAPI:
         governance,
         metadata,
         workflows,
+        signatures,
         admin,
     ):
         v1.include_router(module.router)

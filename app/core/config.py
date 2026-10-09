@@ -66,6 +66,13 @@ class Settings(BaseSettings):
     extract_timeout_seconds: int = 60
     ocr_command: str = ""  # path to a tesseract binary; empty = OCR disabled
 
+    # --- e-signature (provider adapter; 'none' disables the feature) ---
+    signature_provider: Literal["none", "fake", "documenso"] = "none"
+    documenso_base_url: str = ""
+    documenso_api_key: SecretStr | None = None
+    signature_webhook_secret: SecretStr | None = None
+    signature_reconcile_minutes: int = 15
+
     # --- rate limiting (per process; see docs/security) ---
     rate_limit_enabled: bool = True
     rate_limit_default_per_minute: int = 600
@@ -104,6 +111,10 @@ class Settings(BaseSettings):
                 problems.append(
                     "MALWARE_SCANNER must be a real scanner (clamd) in staging/production"
                 )
+            if self.signature_provider == "fake":
+                problems.append("SIGNATURE_PROVIDER=fake is development/test only")
+            if self.signature_provider != "none" and self.signature_webhook_secret is None:
+                problems.append("SIGNATURE_WEBHOOK_SECRET is required when signatures are enabled")
             if "*" in self.cors_origins:
                 problems.append("CORS_ALLOWED_ORIGINS must not contain '*'")
             if (

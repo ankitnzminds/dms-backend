@@ -51,6 +51,9 @@ DEFAULT_ORG_SETTINGS: dict[str, Any] = {
     "trash_retention_days": 30,
     # Documents with these classifications cannot be reached through shares (DLP).
     "share_blocked_classifications": ["restricted"],
+    # E-signature: off by default; external signers (outside the organization) need an opt-in.
+    "signatures_enabled": False,
+    "allow_external_signers": False,
 }
 _SETTING_VALIDATORS = {
     "mask_shared_breadcrumbs": lambda v: isinstance(v, bool),
@@ -61,6 +64,8 @@ _SETTING_VALIDATORS = {
     "trash_retention_days": lambda v: (
         v is None or (isinstance(v, int) and not isinstance(v, bool) and 1 <= v <= 3650)
     ),
+    "signatures_enabled": lambda v: isinstance(v, bool),
+    "allow_external_signers": lambda v: isinstance(v, bool),
     "share_blocked_classifications": lambda v: (
         isinstance(v, list)
         and all(x in {"public", "internal", "confidential", "restricted"} for x in v)

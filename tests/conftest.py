@@ -32,6 +32,8 @@ os.environ.update(
         "PUBLIC_API_BASE_URL": "http://testserver",
         "DATABASE_URL": "postgresql://placeholder:placeholder@127.0.0.1:1/placeholder",
         "SUPABASE_STORAGE_BUCKET": "dms-test",
+        "SIGNATURE_PROVIDER": "fake",
+        "SIGNATURE_WEBHOOK_SECRET": "test-signature-webhook-secret-0123456789",
     }
 )
 
@@ -47,6 +49,9 @@ def _reset_caches() -> None:
     get_sessionmaker.cache_clear()
     reset_storage_registry()
     reset_identity_provider()
+    from app.adapters.signatures.factory import reset_signature_provider
+
+    reset_signature_provider()
 
 
 @pytest.fixture(scope="session")
