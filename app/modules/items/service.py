@@ -43,6 +43,7 @@ from app.db.models import (
 )
 from app.modules.audit import service as audit
 from app.modules.authorization.service import AuthorizationService
+from app.modules.documents import locks as documents_locks
 from app.modules.documents import service as documents
 from app.modules.folders import service as folders
 from app.modules.folders.common import ensure_name_free, name_taken, plain_path, subtree_folder_ids
@@ -490,6 +491,7 @@ def list_favorites(
             permissions=sorted(perms[f.id]),  # type: ignore[arg-type]
             is_team_folder=f.is_team_folder,
             starred=True,
+            color_tag=f.color_tag,
             updated_by=refs.get(f.updated_by) if f.updated_by else None,
         )
         for f in fav_folders
@@ -697,3 +699,32 @@ def set_preference(db: Session, p: Principal, key: str, value: dict[str, Any]) -
 def _check_key(key: str) -> None:
     if not _PREF_KEY.match(key):
         raise ValidationFailed("Invalid preference key.")
+
+
+# ------------------------------------------------------------------ color tags
+def set_color_tag(
+    db: Session, authz: AuthorizationService, kind: str, resource_id: uuid.UUID, color: str | None
+) -> None:
+    """A searchable, filterable label. Needs the same right as editing the item's details."""
+    p = authz.principal
+    if kind == "document":
+        doc = authz.require_document(resource_id, Action.EDIT_METADATA)
+        documents_locks.assert_unlocked_for(db, doc, p)
+        target: Any = doc
+    else:
+        target = authz.require_folder(resource_id, Action.RENAME)
+    if target.color_tag == color:
+        return
+    previous = target.color_tag
+    target.color_tag = color
+    target.row_version += 1
+    audit.record(
+        db,
+        organization_id=p.organization_id,
+        actor_user_id=p.user_id,
+        action=f"{kind}.color_tagged",
+        resource_type=kind,
+        resource_id=target.id,
+        metadata={"from": previous, "to": color},
+    )
+    db.commit()

@@ -16,6 +16,7 @@ from app.schemas.items import (
     BulkDeleteIn,
     BulkMoveCopyIn,
     BulkResult,
+    ColorTagIn,
     FolderCopyIn,
     FolderCopyOut,
     ItemProperties,
@@ -156,3 +157,27 @@ def put_pref(
     key: PrefKey, body: PreferenceValue, db: DbSession, principal: CurrentPrincipal
 ) -> PreferenceValue:
     return PreferenceValue(value=items.set_preference(db, principal, key, body.value))
+
+
+@router.put(
+    "/documents/{document_id}/color-tag",
+    status_code=204,
+    summary="Set or clear a document's color tag",
+)
+def set_document_color(
+    document_id: uuid.UUID, body: ColorTagIn, db: DbSession, authz: Authz
+) -> Response:
+    items.set_color_tag(db, authz, "document", document_id, body.color)
+    return Response(status_code=204)
+
+
+@router.put(
+    "/folders/{folder_id}/color-tag",
+    status_code=204,
+    summary="Set or clear a folder's color tag",
+)
+def set_folder_color(
+    folder_id: uuid.UUID, body: ColorTagIn, db: DbSession, authz: Authz
+) -> Response:
+    items.set_color_tag(db, authz, "folder", folder_id, body.color)
+    return Response(status_code=204)

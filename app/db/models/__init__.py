@@ -16,6 +16,7 @@ from app.db.models.chat import (
     ToolExecution,
 )
 from app.db.models.comments import Comment
+from app.db.models.diffs import VersionDiff
 from app.db.models.directory import (
     DirectoryGroupLink,
     DirectorySource,
@@ -60,6 +61,7 @@ __all__ = [
     "AutomationRun",
     "AutomationVersion",
     "OfficeLock",
+    "VersionDiff",
     "Policy",
     "Comment",
     "AccessRequest",

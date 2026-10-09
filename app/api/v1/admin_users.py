@@ -11,11 +11,12 @@ from sqlalchemy import func, select
 
 from app.api.deps import CurrentPrincipal, DbSession, limited
 from app.core.errors import NotFoundError
-from app.db.enums import PolicyScope
+from app.db.enums import PolicyScope, ResourceType
 from app.db.models import Document, Membership, ShareGrant, ShareRecipient
 from app.modules.admin_users import service as users
 from app.modules.admin_users import transfer
 from app.modules.audit import activity
+from app.modules.authorization import access_check
 from app.modules.policies import service as policies
 from app.modules.policies.schema import ENFORCED
 from app.modules.users import service as members
@@ -41,7 +42,7 @@ from app.schemas.admin_users import (
     UserGroupsPut,
     UserShareOut,
 )
-from app.schemas.common import Page
+from app.schemas.common import ApiModel, Page
 
 router = APIRouter(prefix="/admin", tags=["admin-users"])
 
@@ -519,3 +520,51 @@ def user_activity(
 )
 def audit_policy(principal: CurrentPrincipal) -> AuditPolicyOut:
     return activity.audit_policy(principal)
+
+
+# ---- access check / ACL impact
+class AccessCheckRequest(ApiModel):
+    resource_type: Literal["document", "folder"]
+    resource_id: uuid.UUID
+    user_id: uuid.UUID
+
+
+class ImpactRequest(ApiModel):
+    resource_type: Literal["document", "folder"]
+    resource_id: uuid.UUID
+    subject_type: Literal["user", "group", "organization"]
+    subject_id: uuid.UUID | None = None
+    inherit: bool = True
+
+
+@router.post(
+    "/access-check",
+    response_model=access_check.AccessCheckOut,
+    summary="What can this user do with this item, and why? (same engine as enforcement)",
+    dependencies=[limited("access_check")],
+)
+def access_check_endpoint(
+    body: AccessCheckRequest, db: DbSession, principal: CurrentPrincipal
+) -> access_check.AccessCheckOut:
+    return access_check.check(
+        db, principal, ResourceType(body.resource_type), body.resource_id, body.user_id
+    )
+
+
+@router.post(
+    "/acl-impact",
+    response_model=access_check.ImpactOut,
+    summary="Preview how far a grant would reach before making it",
+)
+def acl_impact(
+    body: ImpactRequest, db: DbSession, principal: CurrentPrincipal
+) -> access_check.ImpactOut:
+    return access_check.impact(
+        db,
+        principal,
+        ResourceType(body.resource_type),
+        body.resource_id,
+        body.subject_type,
+        body.subject_id,
+        body.inherit,
+    )

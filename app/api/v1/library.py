@@ -42,6 +42,8 @@ def search(
     content_type: str | None = Query(None, max_length=127),
     modified_after: datetime | None = None,
     modified_before: datetime | None = None,
+    color_tag: Literal["red", "orange", "yellow", "green", "blue", "purple", "pink", "gray"]
+    | None = None,
     limit: int = Query(25, ge=1, le=100),
     offset: int = Query(0, ge=0),
 ) -> Page[SearchResult]:
@@ -57,6 +59,7 @@ def search(
         content_type=content_type,
         modified_after=modified_after,
         modified_before=modified_before,
+        color_tag=color_tag,
         limit=limit,
         offset=offset,
     )

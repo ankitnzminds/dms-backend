@@ -582,6 +582,7 @@ def _tree_items_for(
                 updated_by=refs.get(d.updated_by) if d.updated_by else None,
                 locked=lock_active(d),
                 locked_by_me=lock_active(d) and d.locked_by == authz.principal.user_id,
+                color_tag=d.color_tag,
             )
         )
     return items

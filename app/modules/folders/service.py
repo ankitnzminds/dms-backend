@@ -161,6 +161,7 @@ def list_children(
                 permissions=sorted(folder_perms[f.id]),
                 is_team_folder=f.is_team_folder,
                 starred=f.id in pinned,
+                color_tag=f.color_tag,
                 updated_by=refs.get(f.updated_by) if f.updated_by else None,
             )
         )
@@ -182,6 +183,7 @@ def list_children(
                 updated_by=refs.get(d.updated_by) if d.updated_by else None,
                 locked=lock_active(d),
                 locked_by_me=lock_active(d) and d.locked_by == authz.principal.user_id,
+                color_tag=d.color_tag,
             )
         )
 

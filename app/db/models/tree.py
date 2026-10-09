@@ -77,6 +77,7 @@ class Folder(Base):
         ForeignKey("dms.users.id", ondelete="SET NULL")
     )
     is_team_folder: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    color_tag: Mapped[str | None] = mapped_column(String(16))
     updated_by: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("dms.users.id", ondelete="SET NULL")
     )
@@ -135,6 +136,7 @@ class Document(Base):
     )
     folder_id: Mapped[uuid.UUID] = mapped_column()
     name: Mapped[str] = mapped_column(String(255))
+    color_tag: Mapped[str | None] = mapped_column(String(16))
     owner_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("dms.users.id", ondelete="SET NULL")
     )

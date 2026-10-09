@@ -12,6 +12,11 @@ from app.schemas.common import ActionName, ApiModel, BreadcrumbSegmentOut, UserR
 from app.schemas.tree import LockOut
 
 ConflictPolicy = Literal["fail", "rename", "skip"]
+ColorName = Literal["red", "orange", "yellow", "green", "blue", "purple", "pink", "gray"]
+
+
+class ColorTagIn(ApiModel):
+    color: ColorName | None = Field(None, description="Null removes the tag.")
 
 
 class ItemRef(ApiModel):

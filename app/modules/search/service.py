@@ -79,6 +79,7 @@ def search(
     modified_after: datetime | None,
     modified_before: datetime | None,
     meta: list[str],
+    color_tag: str | None = None,
     limit: int,
     offset: int,
 ) -> tuple[list[SearchResult], int]:
@@ -106,6 +107,8 @@ def search(
             stmt = stmt.where(Document.updated_at <= modified_before)
         for key, value in meta_filters.items():
             stmt = stmt.where(Document.custom_metadata[key].astext == value)
+        if color_tag:
+            stmt = stmt.where(Document.color_tag == color_tag)
         if content_type:
             stmt = stmt.join(
                 DocumentVersion, DocumentVersion.id == Document.current_version_id
@@ -167,6 +170,8 @@ def search(
             Folder.parent_folder_id.is_not(None),
             func.lower(Folder.name).like(pattern, escape="\\"),
         )
+        if color_tag:
+            fstmt = fstmt.where(Folder.color_tag == color_tag)
         if subtree is not None:
             fstmt = fstmt.where(Folder.id.in_(subtree))
         if modified_after:

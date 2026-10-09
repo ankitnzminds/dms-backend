@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, Query, Response
 
 from app.api.deps import Authz, DbSession, limited
 from app.api.v1.uploads import IdempotencyKey, session_out
 from app.core.errors import ErrorResponse
 from app.db.enums import ResourceType
 from app.modules.authorization import acl
+from app.modules.diffs import service as diffs
 from app.modules.documents import downloads
 from app.modules.documents import service as documents
 from app.modules.sharing import service as sharing
@@ -30,6 +31,7 @@ from app.schemas.tree import (
     RestoreRequest,
     VersionOut,
 )
+from app.schemas.versions import DiffOut
 
 router = APIRouter(
     prefix="/documents", tags=["documents"], responses={404: {"model": ErrorResponse}}
@@ -113,6 +115,22 @@ def unstar(document_id: uuid.UUID, db: DbSession, authz: Authz) -> Response:
 @router.get("/{document_id}/versions", response_model=list[VersionOut], summary="Version history")
 def list_versions(document_id: uuid.UUID, db: DbSession, authz: Authz) -> list[VersionOut]:
     return documents.list_versions(db, authz, document_id)
+
+
+@router.get(
+    "/{document_id}/versions/compare",
+    response_model=DiffOut,
+    summary="Compare two versions (format-aware: text, DOCX, XLSX, PPTX, PDF, CSV, JSON)",
+    dependencies=[limited("version_compare", sensitive=True)],
+)
+def compare_versions(
+    document_id: uuid.UUID,
+    db: DbSession,
+    authz: Authz,
+    from_version: int = Query(..., alias="from", ge=1),
+    to_version: int = Query(..., alias="to", ge=1),
+) -> DiffOut:
+    return diffs.compare(db, authz, document_id, from_version, to_version)
 
 
 @router.post(

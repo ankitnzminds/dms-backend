@@ -89,6 +89,7 @@ class TreeItem(ApiModel):
     updated_by: UserRef | None = None  # "Modified by"
     locked: bool = False
     locked_by_me: bool = False
+    color_tag: str | None = None
 
 
 class FolderCreate(ApiModel):
