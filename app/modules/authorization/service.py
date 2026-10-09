@@ -24,7 +24,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from sqlalchemy import and_, or_, select, text
+from sqlalchemy import and_, func, or_, select, text
 from sqlalchemy.orm import Session
 
 from app.core.errors import ForbiddenError, NotFoundError
@@ -64,7 +64,7 @@ _CHAIN_SQL = text(
         JOIN dms.folders p ON p.id = c.parent_id AND p.organization_id = :org
        WHERE c.depth < :max_depth
     )
-    SELECT start_id, folder_id, depth FROM chain
+    SELECT start_id, folder_id, depth FROM chain ORDER BY start_id, depth
     """
 )
 
@@ -193,9 +193,18 @@ class AuthorizationService:
                 ShareRecipient.recipient_type == RecipientType.GROUP.value,
                 ShareRecipient.recipient_id.in_(list(p.group_ids) or [uuid.UUID(int=0)]),
             ),
+            and_(  # "EVERYONE": a share addressed to the whole organization
+                ShareRecipient.recipient_type == RecipientType.ORGANIZATION.value,
+                ShareRecipient.recipient_id == org,
+            ),
         )
         share_rows = self.db.execute(
-            select(ShareGrant.resource_type, ShareGrant.resource_id, ShareGrant.actions)
+            select(
+                ShareGrant.resource_type,
+                ShareGrant.resource_id,
+                # per-principal permissions override the share's default set
+                func.coalesce(ShareRecipient.actions, ShareGrant.actions),
+            )
             .join(
                 ShareRecipient,
                 and_(
@@ -246,6 +255,18 @@ class AuthorizationService:
             (folder_share if rtype == ResourceType.FOLDER.value else doc_share)[rid].update(actions)
 
         blocked_classes = self.share_blocked_classifications()
+        # "Inherit Folder Level Security" off: nothing above such a folder reaches it or below it.
+        no_inherit: set[uuid.UUID] = set()
+        if chain_folder_ids:
+            no_inherit = set(
+                self.db.scalars(
+                    select(Folder.id).where(
+                        Folder.id.in_(chain_folder_ids),
+                        Folder.organization_id == org,
+                        Folder.inherit_acl.is_(False),
+                    )
+                )
+            )
 
         def from_folder_chain(
             start: uuid.UUID, extra_depth: int, include_shares: bool = True
@@ -260,6 +281,8 @@ class AuthorizationService:
                     acc.update(folder_share.get(fid, ()))  # folder shares cover the subtree
                 if fid in owned_folders:
                     acc.update(OWNER_ACTIONS)
+                if fid in no_inherit:
+                    break  # the chain is cut here
             return acc
 
         for fid in folder_ids:

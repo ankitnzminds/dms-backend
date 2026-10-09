@@ -13,10 +13,10 @@ from app.modules.automations import runs, service
 from app.schemas.automations import (
     AutomationCreate,
     AutomationOut,
+    AutomationRunOut,
     AutomationUpdate,
     CatalogueOut,
     PublishRequest,
-    AutomationRunOut,
     TestRequest,
     ValidationReport,
 )

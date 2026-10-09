@@ -55,6 +55,9 @@ DEFAULT_ORG_SETTINGS: dict[str, Any] = {
     "email_include_titles": False,
     "signatures_enabled": False,
     "allow_external_signers": False,
+    # Anyone holding an open (unrestricted) share link may view/download WITHOUT signing in.
+    # Off by default: links then only open for signed-in members of the organization.
+    "allow_public_links": False,
 }
 _SETTING_VALIDATORS = {
     "mask_shared_breadcrumbs": lambda v: isinstance(v, bool),
@@ -68,6 +71,7 @@ _SETTING_VALIDATORS = {
     "email_include_titles": lambda v: isinstance(v, bool),
     "signatures_enabled": lambda v: isinstance(v, bool),
     "allow_external_signers": lambda v: isinstance(v, bool),
+    "allow_public_links": lambda v: isinstance(v, bool),
     "share_blocked_classifications": lambda v: (
         isinstance(v, list)
         and all(x in {"public", "internal", "confidential", "restricted"} for x in v)

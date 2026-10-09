@@ -23,7 +23,7 @@ from app.modules.automations import engine, triggers
 from app.modules.automations.registry import ACTIONS, CONDITIONS
 from app.modules.automations.service import get_or_404, require_admin
 from app.modules.identity.principal import Principal
-from app.schemas.automations import NodeRunOut, AutomationRunOut
+from app.schemas.automations import AutomationRunOut, NodeRunOut
 
 
 def _run_out(db: Session, run: AutomationRun, *, with_nodes: bool) -> AutomationRunOut:

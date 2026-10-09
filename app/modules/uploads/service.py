@@ -43,6 +43,7 @@ from app.modules.folders.common import ensure_name_free, plain_path
 from app.modules.identity.principal import Principal
 from app.modules.outbox import service as outbox
 from app.modules.quota import service as quota
+from app.modules.sharing import quota as share_quota
 
 log = get_logger(__name__)
 
@@ -221,6 +222,7 @@ def initiate(
         folder = authz.require_folder(folder_id, Action.CREATE_CHILD)
         ensure_name_free(db, p.organization_id, folder.id, name)
         target_folder = folder.id
+    share_quota.check(db, p, target_folder, size_bytes)
 
     active = db.scalar(
         select(func.count()).where(
@@ -514,6 +516,7 @@ def finalize(
             actual_bytes=version.size_bytes,
             document_version_id=version.id,
         )
+        share_quota.charge(db, p, session.folder_id, version.size_bytes)
         session.state = UploadState.FINALIZED.value
         session.result_version_id = version.id
         outbox.enqueue(

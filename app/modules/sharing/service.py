@@ -40,12 +40,14 @@ from app.db.models import (
 )
 from app.modules.audit import service as audit
 from app.modules.authorization.actions import SHAREABLE_ACTIONS, expand_actions
+from app.modules.authorization.matrix import SHARE_LABELS, to_labels
 from app.modules.authorization.service import AuthorizationService
 from app.modules.folders.common import plain_path
 from app.modules.folders.service import mask_policy, to_breadcrumb_out
 from app.modules.organizations.service import get_org, org_settings
 from app.modules.outbox import service as outbox
 from app.modules.policies import service as policies
+from app.modules.sharing import links
 from app.schemas.common import UserRef
 from app.schemas.sharing import (
     ReceivedShare,
@@ -253,8 +255,13 @@ def _load_recipients(
         if group_ids
         else {}
     )
+    defaults = {
+        s.id: list(s.actions)
+        for s in db.scalars(select(ShareGrant).where(ShareGrant.id.in_(share_ids)))
+    }
     out: dict[uuid.UUID, list[RecipientOut]] = defaultdict(list)
     for r in rows:
+        labels = to_labels(r.actions or defaults.get(r.share_grant_id, []), SHARE_LABELS)
         if r.recipient_type == RecipientType.USER.value:
             u = users.get(r.recipient_id)
             out[r.share_grant_id].append(
@@ -263,12 +270,24 @@ def _load_recipients(
                     id=r.recipient_id,
                     name=u.display_name if u else None,
                     email=u.email if u else None,
+                    permissions=labels,
+                )
+            )
+        elif r.recipient_type == RecipientType.ORGANIZATION.value:
+            out[r.share_grant_id].append(
+                RecipientOut(
+                    type="organization",
+                    id=r.recipient_id,
+                    name="EVERYONE (the whole organization)",
+                    permissions=labels,
                 )
             )
         else:
             g = groups.get(r.recipient_id)
             out[r.share_grant_id].append(
-                RecipientOut(type="group", id=r.recipient_id, name=g.name if g else None)
+                RecipientOut(
+                    type="group", id=r.recipient_id, name=g.name if g else None, permissions=labels
+                )
             )
     return out
 
@@ -303,11 +322,21 @@ def _user_ref(users: dict[uuid.UUID, User], uid: uuid.UUID) -> UserRef:
     return UserRef(id=uid, display_name=u.display_name if u else None, email=u.email if u else None)
 
 
-def _shares_out(db: Session, org_id: uuid.UUID, shares: list[ShareGrant]) -> list[ShareOut]:
+def _shares_out(
+    db: Session,
+    org_id: uuid.UUID,
+    shares: list[ShareGrant],
+    viewer: AuthorizationService | None = None,
+) -> list[ShareOut]:
     users = {
         u.id: u
         for u in db.scalars(
-            select(User).where(User.id.in_({s.created_by for s in shares} or {uuid.UUID(int=0)}))
+            select(User).where(
+                User.id.in_(
+                    {s.created_by for s in shares} | {s.owner_id for s in shares if s.owner_id}
+                    or {uuid.UUID(int=0)}
+                )
+            )
         )
     }
     recipients = _load_recipients(db, [s.id for s in shares])
@@ -327,6 +356,24 @@ def _shares_out(db: Session, org_id: uuid.UUID, shares: list[ShareGrant]) -> lis
             status=share_status(s, now),  # type: ignore[arg-type]
             message=s.message,
             recipients=recipients.get(s.id, []),
+            name=s.name or names.get(s.resource_id),
+            owner=_user_ref(users, s.owner_id or s.created_by),
+            restricted=s.restricted,
+            notify_email=s.notify_email,
+            upload_quota_mb=(s.upload_quota_bytes // (1024 * 1024))
+            if s.upload_quota_bytes
+            else None,
+            upload_used_bytes=s.upload_used_bytes,
+            link_enabled=s.link_enabled,
+            can_manage=bool(viewer and _can_manage(viewer, s)),
+            link_url=(
+                links.url_for(tok)
+                if viewer
+                and s.link_enabled
+                and _can_manage(viewer, s)
+                and (tok := links.decrypt(s.link_token_enc))
+                else None
+            ),
         )
         for s in shares
     ]
@@ -383,7 +430,7 @@ def get_share_out(
         )
         if not (_can_manage(authz, share) or is_recipient):
             raise NotFoundError("Share not found.")
-    return _shares_out(db, p.organization_id, [share])[0]
+    return _shares_out(db, p.organization_id, [share], authz)[0]
 
 
 def revoke_share(db: Session, authz: AuthorizationService, share_id: uuid.UUID) -> ShareOut:
@@ -413,7 +460,7 @@ def revoke_share(db: Session, authz: AuthorizationService, share_id: uuid.UUID) 
             payload={"resource_type": share.resource_type, "resource_id": str(share.resource_id)},
         )
         db.commit()
-    return _shares_out(db, p.organization_id, [share])[0]
+    return _shares_out(db, p.organization_id, [share], authz)[0]
 
 
 def list_sent(
@@ -461,7 +508,7 @@ def list_sent(
         and s.resource_id in (live_doc_ids if s.resource_type == "document" else live_folder_ids)
     ]
     page = shares[offset : offset + limit]
-    return _shares_out(db, p.organization_id, page), len(shares)
+    return _shares_out(db, p.organization_id, page, authz), len(shares)
 
 
 def list_for_resource(
@@ -493,7 +540,7 @@ def list_for_resource(
         )
         if not manage:
             shares = [s for s in shares if s.created_by == p.user_id]
-    return _shares_out(db, p.organization_id, shares)
+    return _shares_out(db, p.organization_id, shares, authz)
 
 
 def list_received(

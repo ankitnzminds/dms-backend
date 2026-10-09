@@ -18,6 +18,17 @@
             "title": "Actions",
             "type": "array"
           },
+          "capabilities": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "default": {},
+            "title": "Capabilities",
+            "type": "object"
+          },
           "not_held": {
             "items": {
               "type": "string"
@@ -35,6 +46,14 @@
               }
             ],
             "title": "Note"
+          },
+          "permissions": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Permissions",
+            "type": "array"
           },
           "resource_id": {
             "format": "uuid",
@@ -134,6 +153,7 @@
                 "restore",
                 "comment",
                 "export",
+                "sync",
                 "administer"
               ],
               "type": "string"
@@ -195,6 +215,7 @@
                     "restore",
                     "comment",
                     "export",
+                    "sync",
                     "administer"
                   ],
                   "type": "string"
@@ -416,6 +437,121 @@
           "actions"
         ],
         "title": "AccessSource",
+        "type": "object"
+      },
+      "AclOut": {
+        "properties": {
+          "direct": {
+            "items": {
+              "$ref": "#/components/schemas/PermissionGrantOut"
+            },
+            "title": "Direct",
+            "type": "array"
+          },
+          "inherit_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inherit Enabled"
+          },
+          "inherited": {
+            "items": {
+              "$ref": "#/components/schemas/InheritedGrant"
+            },
+            "title": "Inherited",
+            "type": "array"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "resource_id": {
+            "format": "uuid",
+            "title": "Resource Id",
+            "type": "string"
+          },
+          "resource_name": {
+            "title": "Resource Name",
+            "type": "string"
+          },
+          "resource_type": {
+            "enum": [
+              "document",
+              "folder"
+            ],
+            "title": "Resource Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "resource_type",
+          "resource_id",
+          "resource_name",
+          "path",
+          "direct",
+          "inherited"
+        ],
+        "title": "AclOut",
+        "type": "object"
+      },
+      "ActionHints": {
+        "description": "Presentation hints only. Every endpoint authorizes independently.",
+        "properties": {
+          "can_copy": {
+            "title": "Can Copy",
+            "type": "boolean"
+          },
+          "can_delete": {
+            "title": "Can Delete",
+            "type": "boolean"
+          },
+          "can_download": {
+            "title": "Can Download",
+            "type": "boolean"
+          },
+          "can_manage_permissions": {
+            "title": "Can Manage Permissions",
+            "type": "boolean"
+          },
+          "can_move": {
+            "title": "Can Move",
+            "type": "boolean"
+          },
+          "can_rename": {
+            "title": "Can Rename",
+            "type": "boolean"
+          },
+          "can_share": {
+            "title": "Can Share",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "can_share",
+          "can_download",
+          "can_rename",
+          "can_copy",
+          "can_move",
+          "can_delete",
+          "can_manage_permissions"
+        ],
+        "title": "ActionHints",
         "type": "object"
       },
       "ActionOut": {
@@ -2090,6 +2226,19 @@
         "title": "AutomationUpdate",
         "type": "object"
       },
+      "Body_inheritance_preview_api_v1_resources_folder__folder_id__inheritance_preview_post": {
+        "properties": {
+          "inherit": {
+            "title": "Inherit",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "inherit"
+        ],
+        "title": "Body_inheritance_preview_api_v1_resources_folder__folder_id__inheritance_preview_post",
+        "type": "object"
+      },
       "BreadcrumbSegmentOut": {
         "properties": {
           "folder_id": {
@@ -2533,6 +2682,35 @@
           "action_ttl_minutes"
         ],
         "title": "ChatStatus",
+        "type": "object"
+      },
+      "CheckAccessIn": {
+        "properties": {
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Id"
+          }
+        },
+        "title": "CheckAccessIn",
         "type": "object"
       },
       "CitationOut": {
@@ -3633,6 +3811,7 @@
                 "restore",
                 "comment",
                 "export",
+                "sync",
                 "administer"
               ],
               "type": "string"
@@ -4216,6 +4395,7 @@
                 "restore",
                 "comment",
                 "export",
+                "sync",
                 "administer"
               ],
               "type": "string"
@@ -4698,6 +4878,149 @@
         "title": "ImportRowOut",
         "type": "object"
       },
+      "InheritancePreview": {
+        "properties": {
+          "affected": {
+            "items": {
+              "$ref": "#/components/schemas/InheritedGrant"
+            },
+            "title": "Affected",
+            "type": "array"
+          },
+          "inherit_after": {
+            "title": "Inherit After",
+            "type": "boolean"
+          },
+          "inherit_now": {
+            "title": "Inherit Now",
+            "type": "boolean"
+          },
+          "note": {
+            "title": "Note",
+            "type": "string"
+          }
+        },
+        "required": [
+          "inherit_now",
+          "inherit_after",
+          "affected",
+          "note"
+        ],
+        "title": "InheritancePreview",
+        "type": "object"
+      },
+      "InheritancePut": {
+        "properties": {
+          "confirm": {
+            "default": false,
+            "title": "Confirm",
+            "type": "boolean"
+          },
+          "convert_inherited": {
+            "default": false,
+            "title": "Convert Inherited",
+            "type": "boolean"
+          },
+          "inherit": {
+            "title": "Inherit",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "inherit"
+        ],
+        "title": "InheritancePut",
+        "type": "object"
+      },
+      "InheritedGrant": {
+        "properties": {
+          "actions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Actions",
+            "type": "array"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "grant_id": {
+            "format": "uuid",
+            "title": "Grant Id",
+            "type": "string"
+          },
+          "permissions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Permissions",
+            "type": "array"
+          },
+          "source_folder_id": {
+            "format": "uuid",
+            "title": "Source Folder Id",
+            "type": "string"
+          },
+          "source_folder_name": {
+            "title": "Source Folder Name",
+            "type": "string"
+          },
+          "subject_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject Id"
+          },
+          "subject_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject Name"
+          },
+          "subject_type": {
+            "enum": [
+              "user",
+              "group",
+              "organization"
+            ],
+            "title": "Subject Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "grant_id",
+          "source_folder_id",
+          "source_folder_name",
+          "subject_type",
+          "subject_id",
+          "subject_name",
+          "actions",
+          "permissions",
+          "expires_at"
+        ],
+        "title": "InheritedGrant",
+        "type": "object"
+      },
       "InviteRequest": {
         "properties": {
           "display_name": {
@@ -4734,6 +5057,44 @@
           "email"
         ],
         "title": "InviteRequest",
+        "type": "object"
+      },
+      "InviteResult": {
+        "properties": {
+          "email": {
+            "enum": [
+              "off",
+              "queued",
+              "not_configured"
+            ],
+            "title": "Email",
+            "type": "string"
+          },
+          "invited": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Invited",
+            "type": "array"
+          },
+          "share": {
+            "$ref": "#/components/schemas/ShareOut"
+          },
+          "skipped": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Skipped",
+            "type": "array"
+          }
+        },
+        "required": [
+          "share",
+          "invited",
+          "skipped",
+          "email"
+        ],
+        "title": "InviteResult",
         "type": "object"
       },
       "Issue": {
@@ -4991,6 +5352,7 @@
                 "restore",
                 "comment",
                 "export",
+                "sync",
                 "administer"
               ],
               "type": "string"
@@ -5206,6 +5568,73 @@
           "release_reason"
         ],
         "title": "LegalHoldOut",
+        "type": "object"
+      },
+      "LinkResolveIn": {
+        "properties": {
+          "token": {
+            "maxLength": 200,
+            "minLength": 20,
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "title": "LinkResolveIn",
+        "type": "object"
+      },
+      "LinkResolveOut": {
+        "properties": {
+          "joined": {
+            "description": "True if opening the link added you to the share just now.",
+            "title": "Joined",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "resource_id": {
+            "format": "uuid",
+            "title": "Resource Id",
+            "type": "string"
+          },
+          "resource_type": {
+            "enum": [
+              "folder",
+              "document"
+            ],
+            "title": "Resource Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "resource_type",
+          "resource_id",
+          "name",
+          "joined"
+        ],
+        "title": "LinkResolveOut",
+        "type": "object"
+      },
+      "LinkTrack": {
+        "properties": {
+          "event": {
+            "enum": [
+              "copied",
+              "opened",
+              "emailed"
+            ],
+            "title": "Event",
+            "type": "string"
+          }
+        },
+        "required": [
+          "event"
+        ],
+        "title": "LinkTrack",
         "type": "object"
       },
       "LockIn": {
@@ -6757,6 +7186,38 @@
         "title": "Page[SearchResult]",
         "type": "object"
       },
+      "Page_ShareHistoryItem_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ShareHistoryItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "description": "Total items visible to the caller (after authorization).",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "Page[ShareHistoryItem]",
+        "type": "object"
+      },
       "Page_ShareOut_": {
         "properties": {
           "items": {
@@ -7018,6 +7479,7 @@
                 "restore",
                 "comment",
                 "export",
+                "sync",
                 "administer"
               ],
               "type": "string"
@@ -7094,6 +7556,7 @@
                 "restore",
                 "comment",
                 "export",
+                "sync",
                 "administer"
               ],
               "type": "string"
@@ -7138,6 +7601,14 @@
           "inherit": {
             "title": "Inherit",
             "type": "boolean"
+          },
+          "permissions": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Permissions",
+            "type": "array"
           },
           "resource_id": {
             "format": "uuid",
@@ -7273,6 +7744,110 @@
           }
         },
         "title": "PreferenceValue",
+        "type": "object"
+      },
+      "PrincipalPermissions": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "permissions": {
+            "items": {
+              "enum": [
+                "view",
+                "download",
+                "upload",
+                "share",
+                "sync",
+                "delete",
+                "manage"
+              ],
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Permissions",
+            "type": "array"
+          },
+          "type": {
+            "enum": [
+              "user",
+              "group",
+              "organization"
+            ],
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "permissions"
+        ],
+        "title": "PrincipalPermissions",
+        "type": "object"
+      },
+      "PrincipalPermissionsPut": {
+        "properties": {
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "inherit": {
+            "default": true,
+            "title": "Inherit",
+            "type": "boolean"
+          },
+          "permissions": {
+            "items": {
+              "enum": [
+                "read",
+                "write",
+                "share",
+                "delete",
+                "manage"
+              ],
+              "type": "string"
+            },
+            "title": "Permissions",
+            "type": "array"
+          },
+          "subject_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject Id"
+          },
+          "subject_type": {
+            "enum": [
+              "user",
+              "group",
+              "organization"
+            ],
+            "title": "Subject Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "subject_type",
+          "permissions"
+        ],
+        "title": "PrincipalPermissionsPut",
         "type": "object"
       },
       "ProcessingStatusOut": {
@@ -7603,6 +8178,7 @@
                 "restore",
                 "comment",
                 "export",
+                "sync",
                 "administer"
               ],
               "type": "string"
@@ -7788,10 +8364,19 @@
             ],
             "title": "Name"
           },
+          "permissions": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Permissions",
+            "type": "array"
+          },
           "type": {
             "enum": [
               "user",
-              "group"
+              "group",
+              "organization"
             ],
             "title": "Type",
             "type": "string"
@@ -8130,6 +8715,7 @@
                 "restore",
                 "comment",
                 "export",
+                "sync",
                 "administer"
               ],
               "type": "string"
@@ -8208,6 +8794,7 @@
                 "restore",
                 "comment",
                 "export",
+                "sync",
                 "administer"
               ],
               "type": "string"
@@ -8241,6 +8828,19 @@
             ],
             "title": "Message"
           },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
           "recipients": {
             "items": {
               "$ref": "#/components/schemas/RecipientIn"
@@ -8256,6 +8856,126 @@
           "actions"
         ],
         "title": "ShareCreate",
+        "type": "object"
+      },
+      "ShareGroupAdd": {
+        "properties": {
+          "confirm_broad": {
+            "default": false,
+            "title": "Confirm Broad",
+            "type": "boolean"
+          },
+          "everyone": {
+            "default": false,
+            "description": "Add the whole organization (EVERYONE).",
+            "title": "Everyone",
+            "type": "boolean"
+          },
+          "group_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Id"
+          }
+        },
+        "title": "ShareGroupAdd",
+        "type": "object"
+      },
+      "ShareHistoryItem": {
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "actor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "details": {
+            "additionalProperties": true,
+            "default": {},
+            "title": "Details",
+            "type": "object"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "ip_address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ip Address"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "success",
+              "denied",
+              "failure"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "occurred_at",
+          "action",
+          "summary",
+          "actor",
+          "outcome"
+        ],
+        "title": "ShareHistoryItem",
+        "type": "object"
+      },
+      "ShareInvite": {
+        "properties": {
+          "send_email": {
+            "default": false,
+            "title": "Send Email",
+            "type": "boolean"
+          },
+          "users": {
+            "items": {
+              "$ref": "#/components/schemas/RecipientIn"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Users",
+            "type": "array"
+          }
+        },
+        "required": [
+          "users"
+        ],
+        "title": "ShareInvite",
         "type": "object"
       },
       "ShareOut": {
@@ -8279,12 +8999,18 @@
                 "restore",
                 "comment",
                 "export",
+                "sync",
                 "administer"
               ],
               "type": "string"
             },
             "title": "Actions",
             "type": "array"
+          },
+          "can_manage": {
+            "default": false,
+            "title": "Can Manage",
+            "type": "boolean"
           },
           "created_at": {
             "format": "date-time",
@@ -8311,6 +9037,23 @@
             "title": "Id",
             "type": "string"
           },
+          "link_enabled": {
+            "default": false,
+            "title": "Link Enabled",
+            "type": "boolean"
+          },
+          "link_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Present only for managers and only while enabled.",
+            "title": "Link Url"
+          },
           "message": {
             "anyOf": [
               {
@@ -8321,6 +9064,32 @@
               }
             ],
             "title": "Message"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "notify_email": {
+            "default": true,
+            "title": "Notify Email",
+            "type": "boolean"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "recipients": {
             "items": {
@@ -8345,6 +9114,17 @@
             ],
             "title": "Resource Name"
           },
+          "resource_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Path"
+          },
           "resource_type": {
             "enum": [
               "folder",
@@ -8352,6 +9132,11 @@
             ],
             "title": "Resource Type",
             "type": "string"
+          },
+          "restricted": {
+            "default": true,
+            "title": "Restricted",
+            "type": "boolean"
           },
           "revoked_at": {
             "anyOf": [
@@ -8373,6 +9158,23 @@
             ],
             "title": "Status",
             "type": "string"
+          },
+          "upload_quota_mb": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null = unlimited.",
+            "title": "Upload Quota Mb"
+          },
+          "upload_used_bytes": {
+            "default": 0,
+            "title": "Upload Used Bytes",
+            "type": "integer"
           }
         },
         "required": [
@@ -8389,6 +9191,135 @@
           "recipients"
         ],
         "title": "ShareOut",
+        "type": "object"
+      },
+      "SharePermissionsUpdate": {
+        "properties": {
+          "principals": {
+            "items": {
+              "$ref": "#/components/schemas/PrincipalPermissions"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Principals",
+            "type": "array"
+          }
+        },
+        "required": [
+          "principals"
+        ],
+        "title": "SharePermissionsUpdate",
+        "type": "object"
+      },
+      "ShareUpdate": {
+        "properties": {
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "link_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link Enabled"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "never_expires": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Never Expires"
+          },
+          "notify_email": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notify Email"
+          },
+          "owner_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Id"
+          },
+          "restricted": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Restricted"
+          },
+          "unlimited_quota": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unlimited Quota"
+          },
+          "upload_quota_mb": {
+            "anyOf": [
+              {
+                "maximum": 10000000.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Upload Quota Mb"
+          }
+        },
+        "title": "ShareUpdate",
         "type": "object"
       },
       "SharesSummary": {
@@ -9282,6 +10213,83 @@
         "title": "TaskOut",
         "type": "object"
       },
+      "TeamFolderOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "permissions": {
+            "items": {
+              "enum": [
+                "discover",
+                "view",
+                "preview",
+                "download",
+                "upload_version",
+                "create_child",
+                "edit_metadata",
+                "rename",
+                "move",
+                "copy",
+                "share",
+                "manage_access",
+                "delete",
+                "restore",
+                "comment",
+                "export",
+                "sync",
+                "administer"
+              ],
+              "type": "string"
+            },
+            "title": "Permissions",
+            "type": "array"
+          },
+          "shared": {
+            "title": "Shared",
+            "type": "boolean"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "created_at",
+          "updated_at",
+          "permissions",
+          "shared"
+        ],
+        "title": "TeamFolderOut",
+        "type": "object"
+      },
+      "TeamFolderPut": {
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "title": "TeamFolderPut",
+        "type": "object"
+      },
       "TestRequest": {
         "properties": {
           "resource_id": {
@@ -9483,6 +10491,7 @@
                 "restore",
                 "comment",
                 "export",
+                "sync",
                 "administer"
               ],
               "type": "string"
@@ -16677,6 +17686,84 @@
         "summary": "Enable/disable or change duration",
         "tags": [
           "governance"
+        ]
+      }
+    },
+    "/api/v1/admin/team-folders/{folder_id}": {
+      "put": {
+        "operationId": "put_team_folder_api_v1_admin_team_folders__folder_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "folder_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Folder Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TeamFolderPut"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mark or unmark a top-level folder as a team folder (administrators)",
+        "tags": [
+          "team-folders"
         ]
       }
     },
@@ -24229,6 +25316,81 @@
         ]
       }
     },
+    "/api/v1/folders/{folder_id}/actions": {
+      "get": {
+        "operationId": "folder_action_hints_api_v1_folders__folder_id__actions_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "folder_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Folder Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActionHints"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Which hover-toolbar actions to offer (a hint; each action is still authorized)",
+        "tags": [
+          "acl"
+        ]
+      }
+    },
     "/api/v1/folders/{folder_id}/activity": {
       "get": {
         "operationId": "folder_activity_api_v1_folders__folder_id__activity_get",
@@ -25000,6 +26162,87 @@
         "summary": "Copy a folder (recursively, as new items) into another folder",
         "tags": [
           "file manager"
+        ]
+      }
+    },
+    "/api/v1/folders/{folder_id}/download-zip": {
+      "post": {
+        "operationId": "download_zip_api_v1_folders__folder_id__download_zip_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "folder_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Folder Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/zip": {}
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Download a folder as a ZIP (only what you may download; the rest is skipped)",
+        "tags": [
+          "folders"
         ]
       }
     },
@@ -27778,6 +29021,164 @@
         ]
       }
     },
+    "/api/v1/public/shares/{token}": {
+      "get": {
+        "operationId": "describe_api_v1_public_shares__token__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Describe Api V1 Public Shares  Token  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "What this open link points at",
+        "tags": [
+          "public-links"
+        ]
+      }
+    },
+    "/api/v1/public/shares/{token}/children": {
+      "get": {
+        "operationId": "children_api_v1_public_shares__token__children_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "folder_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Folder Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Children Api V1 Public Shares  Token  Children Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List a shared folder (or a sub-folder of it)",
+        "tags": [
+          "public-links"
+        ]
+      }
+    },
+    "/api/v1/public/shares/{token}/documents/{document_id}/download": {
+      "get": {
+        "operationId": "download_api_v1_public_shares__token__documents__document_id__download_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Document Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Download a shared file",
+        "tags": [
+          "public-links"
+        ]
+      }
+    },
     "/api/v1/recent": {
       "get": {
         "operationId": "recent_api_v1_recent_get",
@@ -27863,6 +29264,460 @@
         "summary": "Recently accessed documents (server-side)",
         "tags": [
           "library"
+        ]
+      }
+    },
+    "/api/v1/resources/folder/{folder_id}/inheritance": {
+      "put": {
+        "operationId": "put_inheritance_api_v1_resources_folder__folder_id__inheritance_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "folder_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Folder Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InheritancePut"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AclOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Turn Inherit Folder Level Security on/off (never silently erases access)",
+        "tags": [
+          "acl"
+        ]
+      }
+    },
+    "/api/v1/resources/folder/{folder_id}/inheritance/preview": {
+      "post": {
+        "operationId": "inheritance_preview_api_v1_resources_folder__folder_id__inheritance_preview_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "folder_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Folder Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_inheritance_preview_api_v1_resources_folder__folder_id__inheritance_preview_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InheritancePreview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "What turning folder-level inheritance on/off would change",
+        "tags": [
+          "acl"
+        ]
+      }
+    },
+    "/api/v1/resources/{kind}/{resource_id}/acl": {
+      "get": {
+        "operationId": "get_acl_api_v1_resources__kind___resource_id__acl_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "enum": [
+                "document",
+                "folder"
+              ],
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "resource_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Resource Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AclOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Direct and inherited permissions of a file or folder",
+        "tags": [
+          "acl"
+        ]
+      }
+    },
+    "/api/v1/resources/{kind}/{resource_id}/acl/principals": {
+      "put": {
+        "operationId": "put_principal_api_v1_resources__kind___resource_id__acl_principals_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "enum": [
+                "document",
+                "folder"
+              ],
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "resource_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Resource Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrincipalPermissionsPut"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionGrantOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Read/Write/Share/Delete/Manage for one person or group",
+        "tags": [
+          "acl"
+        ]
+      }
+    },
+    "/api/v1/resources/{kind}/{resource_id}/check-access": {
+      "post": {
+        "operationId": "check_access_api_v1_resources__kind___resource_id__check_access_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "enum": [
+                "document",
+                "folder"
+              ],
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "resource_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Resource Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckAccessIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessCheckOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Effective access of a person for this item (diagnostic; grants nothing)",
+        "tags": [
+          "acl"
         ]
       }
     },
@@ -28126,6 +29981,179 @@
         ]
       }
     },
+    "/api/v1/share-links/resolve": {
+      "post": {
+        "operationId": "resolve_link_api_v1_share_links_resolve_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkResolveIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkResolveOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Open a share link as a signed-in member",
+        "tags": [
+          "sharing"
+        ]
+      }
+    },
+    "/api/v1/shares/for/{resource_type}/{resource_id}": {
+      "post": {
+        "operationId": "share_for_resource_api_v1_shares_for__resource_type___resource_id__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "resource_type",
+            "required": true,
+            "schema": {
+              "enum": [
+                "document",
+                "folder"
+              ],
+              "title": "Resource Type",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "resource_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Resource Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShareOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Open the share of this item (creates a private one if you have none yet)",
+        "tags": [
+          "sharing"
+        ]
+      }
+    },
     "/api/v1/shares/received": {
       "get": {
         "operationId": "received_api_v1_shares_received_get",
@@ -28357,6 +30385,89 @@
       }
     },
     "/api/v1/shares/{share_id}": {
+      "delete": {
+        "operationId": "remove_share_api_v1_shares__share_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "share_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Share Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShareOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove the share and its link",
+        "tags": [
+          "sharing"
+        ]
+      },
       "get": {
         "operationId": "get_share_api_v1_shares__share_id__get",
         "parameters": [
@@ -28436,6 +30547,774 @@
           }
         },
         "summary": "Share details (creator, managers and recipients)",
+        "tags": [
+          "sharing"
+        ]
+      },
+      "patch": {
+        "operationId": "update_share_api_v1_shares__share_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "share_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Share Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShareUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShareOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update name, owner, expiry, upload quota, notifications, visibility and link",
+        "tags": [
+          "sharing"
+        ]
+      }
+    },
+    "/api/v1/shares/{share_id}/groups": {
+      "post": {
+        "operationId": "add_group_api_v1_shares__share_id__groups_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "share_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Share Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShareGroupAdd"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShareOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add a group (or EVERYONE) to the share",
+        "tags": [
+          "sharing"
+        ]
+      }
+    },
+    "/api/v1/shares/{share_id}/history": {
+      "get": {
+        "operationId": "share_history_api_v1_shares__share_id__history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "share_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Share Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_ShareHistoryItem_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Share History",
+        "tags": [
+          "sharing"
+        ]
+      }
+    },
+    "/api/v1/shares/{share_id}/invite": {
+      "post": {
+        "operationId": "invite_api_v1_shares__share_id__invite_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "share_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Share Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShareInvite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InviteResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Invite people (minimum permissions: view + preview)",
+        "tags": [
+          "sharing"
+        ]
+      }
+    },
+    "/api/v1/shares/{share_id}/link/rotate": {
+      "post": {
+        "operationId": "rotate_link_api_v1_shares__share_id__link_rotate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "share_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Share Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShareOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Issue a new link; the previous one stops working at once",
+        "tags": [
+          "sharing"
+        ]
+      }
+    },
+    "/api/v1/shares/{share_id}/link/track": {
+      "post": {
+        "operationId": "track_link_api_v1_shares__share_id__link_track_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "share_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Share Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkTrack"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Record that the link was copied/opened/emailed",
+        "tags": [
+          "sharing"
+        ]
+      }
+    },
+    "/api/v1/shares/{share_id}/permissions": {
+      "patch": {
+        "operationId": "set_permissions_api_v1_shares__share_id__permissions_patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "share_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Share Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SharePermissionsUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShareOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set per-person/group permissions (View, Download, Upload, Share, Sync, Delete, Manage)",
+        "tags": [
+          "sharing"
+        ]
+      }
+    },
+    "/api/v1/shares/{share_id}/recipients/{recipient_type}/{recipient_id}": {
+      "delete": {
+        "operationId": "remove_recipient_api_v1_shares__share_id__recipients__recipient_type___recipient_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "share_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Share Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "recipient_type",
+            "required": true,
+            "schema": {
+              "enum": [
+                "user",
+                "group",
+                "organization"
+              ],
+              "title": "Recipient Type",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "recipient_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Recipient Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShareOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove a person or group from the share",
         "tags": [
           "sharing"
         ]
@@ -29130,6 +32009,75 @@
         "summary": "Starred documents",
         "tags": [
           "library"
+        ]
+      }
+    },
+    "/api/v1/team-folders": {
+      "get": {
+        "operationId": "list_team_folders_api_v1_team_folders_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TeamFolderOut"
+                  },
+                  "title": "Response List Team Folders Api V1 Team Folders Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Team Folders",
+        "tags": [
+          "team-folders"
         ]
       }
     },

@@ -78,6 +78,8 @@ class Folder(Base):
     )
     is_team_folder: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     color_tag: Mapped[str | None] = mapped_column(String(16))
+    # False: grants on ancestor folders no longer apply here ("Inherit Folder Level Security" off).
+    inherit_acl: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     updated_by: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("dms.users.id", ondelete="SET NULL")
     )

@@ -140,7 +140,9 @@ def _notify(c: Ctx, params: dict[str, Any], title: str, body: str, *, kind: str)
     if not recipients:
         return NodeResult(
             status="skipped",
-            output={"reason": "No active recipient could be resolved (for example the acting person is unknown)."},
+            output={
+                "reason": "No active recipient could be resolved (for example the acting person is unknown)."
+            },
         )
     sent = 0
     for rid in recipients:

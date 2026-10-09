@@ -14,6 +14,7 @@ from sqlalchemy import text
 from app import __version__
 from app.api.v1 import (
     access_requests,
+    acl,
     admin,
     admin_users,
     ai,
@@ -29,8 +30,10 @@ from app.api.v1 import (
     me,
     metadata,
     office,
+    public_shares,
     shares,
     signatures,
+    team_folders,
     uploads,
     wopi,
     workflows,
@@ -116,11 +119,15 @@ def create_app() -> FastAPI:
         workflows,
         signatures,
         directory,
+        team_folders,
+        public_shares,
+        acl,
         admin,
         admin_users,
         automations,
     ):
         v1.include_router(module.router)
+    v1.include_router(shares.links_router)
     if settings.auth_provider == "local" and settings.app_env in ("development", "test"):
         from app.api.v1 import dev
 

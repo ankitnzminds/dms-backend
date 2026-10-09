@@ -29,7 +29,8 @@ from app.db.models import (
     User,
 )
 from app.modules.audit import service as audit
-from app.modules.authorization.actions import ALL_ACTIONS
+from app.modules.authorization.actions import ALL_ACTIONS, expand_actions
+from app.modules.authorization.matrix import ACL_LABELS, to_labels
 from app.modules.authorization.service import AuthorizationService
 from app.modules.folders.common import subtree_folder_ids
 from app.modules.identity.principal import Principal
@@ -55,6 +56,8 @@ class AccessCheckOut(ApiModel):
     actions: list[str]
     not_held: list[str]
     sources: list[AccessSource]
+    permissions: list[str] = []  # Read, Write, Share, Delete, Manage
+    capabilities: dict[str, list[str]] = {}  # label -> where it comes from
     note: str | None = None
 
 
@@ -69,6 +72,17 @@ class ImpactOut(ApiModel):
 def _require_admin(p: Principal) -> None:
     if not p.is_admin:
         raise ForbiddenError("Administrator access is required.")
+
+
+def _require_manager(db: Session, p: Principal, rtype: ResourceType, rid: uuid.UUID) -> None:
+    """Administrators, or anyone who may manage access on this very item (never someone else's)."""
+    if p.is_admin:
+        return
+    authz = AuthorizationService(db, p)
+    if rtype == ResourceType.DOCUMENT:
+        authz.require_document(rid, Action.MANAGE_ACCESS)
+    else:
+        authz.require_folder(rid, Action.MANAGE_ACCESS)
 
 
 def _chain(db: Session, org: uuid.UUID, folder_id: uuid.UUID) -> list[tuple[uuid.UUID, str, int]]:
@@ -88,7 +102,7 @@ def _chain(db: Session, org: uuid.UUID, folder_id: uuid.UUID) -> list[tuple[uuid
 def check(
     db: Session, p: Principal, rtype: ResourceType, rid: uuid.UUID, user_id: uuid.UUID
 ) -> AccessCheckOut:
-    _require_admin(p)
+    _require_manager(db, p, rtype, rid)
     org = p.organization_id
     doc: Document | None = None
     folder: Folder | None = None
@@ -305,12 +319,23 @@ def check(
         metadata={"user_id": str(user_id), "actions": len(held)},
     )
     db.commit()
+    capabilities: dict[str, list[str]] = {}
+    for label in ACL_LABELS:
+        if label not in to_labels(held, ACL_LABELS):
+            continue
+        capabilities[label] = [
+            src.via + (f" (inherited from {src.inherited_from})" if src.inherited_from else "")
+            for src in sources
+            if src.kind == "role" or label in to_labels(expand_actions(src.actions), ACL_LABELS)
+        ]
     return AccessCheckOut(
         **base,
         account_state="active",
         actions=sorted(held),
         not_held=sorted(ALL_ACTIONS - held),
         sources=sources,
+        permissions=to_labels(held, ACL_LABELS),
+        capabilities=capabilities,
         note=note,
     )
 

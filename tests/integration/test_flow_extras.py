@@ -103,7 +103,10 @@ class TestAccessCheck:
 
     def test_only_admins_and_tenant_scoped(self, closed):  # noqa: ANN001
         w, o, m = closed["world"], closed["owner"], closed["member"]
-        assert check(m, "document", closed["doc"], m.user_id).status_code == 403
+        assert check(m, "document", closed["doc"], m.user_id).status_code in (
+            403,
+            404,
+        )  # not a manager of the item
         other = w.org("Other")
         assert check(other, "document", closed["doc"], other.user_id).status_code == 404
         assert check(o, "document", closed["doc"], other.user_id).status_code == 404

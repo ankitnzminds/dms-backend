@@ -26,6 +26,7 @@ ActionName = Literal[
     "restore",
     "comment",
     "export",
+    "sync",
     "administer",
 ]
 Classification = Literal["public", "internal", "confidential", "restricted"]

@@ -94,6 +94,7 @@ class SubjectType(StrEnum):
 class RecipientType(StrEnum):
     USER = "user"
     GROUP = "group"
+    ORGANIZATION = "organization"  # "EVERYONE": every active member of the organization
 
 
 class LedgerEntryType(StrEnum):
@@ -135,6 +136,7 @@ class Action(StrEnum):
     RESTORE = "restore"
     COMMENT = "comment"
     EXPORT = "export"
+    SYNC = "sync"  # permitted to be synchronized by approved clients (stored; no sync client exists yet)
     ADMINISTER = "administer"
 
 

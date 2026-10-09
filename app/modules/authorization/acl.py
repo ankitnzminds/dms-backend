@@ -13,6 +13,7 @@ from app.db.enums import Action, ResourceType, SubjectType, UserStatus
 from app.db.models import Group, Membership, PermissionGrant, User
 from app.modules.audit import service as audit
 from app.modules.authorization.actions import ALL_ACTIONS
+from app.modules.authorization.matrix import ACL_LABELS, to_labels
 from app.modules.authorization.service import AuthorizationService
 from app.schemas.sharing import PermissionGrantIn, PermissionGrantOut
 
@@ -65,6 +66,7 @@ def _out(db: Session, grants: list[PermissionGrant]) -> list[PermissionGrantOut]
                 subject_id=g.subject_id,
                 subject_name=label,
                 actions=list(g.actions),
+                permissions=to_labels(g.actions, ACL_LABELS),
                 inherit=g.inherit,
                 expires_at=g.expires_at,
                 revoked_at=g.revoked_at,

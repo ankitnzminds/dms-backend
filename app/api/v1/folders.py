@@ -6,11 +6,14 @@ import uuid
 from typing import Literal
 
 from fastapi import APIRouter, Query, Response
+from fastapi.responses import StreamingResponse
 
 from app.api.deps import Authz, DbSession, limited
 from app.core.errors import ErrorResponse
 from app.db.enums import ResourceType
 from app.modules.authorization import acl
+from app.modules.documents import downloads
+from app.modules.folders import archive as folder_archive
 from app.modules.folders import service as folders
 from app.modules.sharing import service as sharing
 from app.schemas.common import BreadcrumbSegmentOut, Page
@@ -172,3 +175,34 @@ def revoke_folder_permission(
 ) -> Response:
     acl.revoke_grant(db, authz, ResourceType.FOLDER, folder_id, grant_id)
     return Response(status_code=204)
+
+
+@router.post(
+    "/{folder_id}/download-zip",
+    summary="Download a folder as a ZIP (only what you may download; the rest is skipped)",
+    response_class=StreamingResponse,
+    responses={200: {"content": {"application/zip": {}}}},
+    dependencies=[limited("zip_download", sensitive=True)],
+)
+def download_zip(folder_id: uuid.UUID, db: DbSession, authz: Authz) -> StreamingResponse:
+    arch = folder_archive.build(db, authz, folder_id)
+
+    def stream():  # noqa: ANN202
+        try:
+            while chunk := arch.file.read(1024 * 1024):
+                yield chunk
+        finally:
+            arch.file.close()
+
+    return StreamingResponse(
+        stream(),
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": downloads.content_disposition("attachment", arch.filename),
+            "Content-Length": str(arch.size),
+            "Cache-Control": "no-store",
+            "X-Content-Type-Options": "nosniff",
+            "X-Archive-Files": str(arch.files),
+            "X-Archive-Skipped": str(arch.skipped),
+        },
+    )

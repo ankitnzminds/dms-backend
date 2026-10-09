@@ -114,6 +114,8 @@ ENFORCED = frozenset(
         "general.user_storage_quota_bytes",
         "user_policy.max_upload_bytes",
         "user_policy.enable_web_edit",
+        "user_policy.disable_invitations",
+        "user_policy.disable_everyone_group_sharing",
         "notifications.disable_all",
         "notifications.disable_share",
     }
