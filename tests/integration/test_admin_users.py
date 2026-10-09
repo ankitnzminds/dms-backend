@@ -234,6 +234,8 @@ class TestPolicies:
         assert eff["provenance"]["user_policy.max_upload_bytes"] == "user"
         assert eff["provenance"]["mfa.require_mfa"] == "default"
         assert eff["applied_from"] == "user"
+        assert eff["inherited"]["user_policy"]["max_upload_bytes"] == 0  # without the user override
+        assert eff["inherited_provenance"]["general.default_share_expiry_days"] == "group:Finance"
         assert "user_policy.max_upload_bytes" in eff["enforced"]
         assert "mfa.require_mfa" not in eff["enforced"]  # stored, honestly not enforced
         reset = o.post(f"{API}/users/{m.user_id}/policy/reset")

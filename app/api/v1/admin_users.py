@@ -377,6 +377,7 @@ def effective_policy(
 ) -> EffectivePolicyOut:
     users.get_user(db, principal, user_id)
     eff = policies.effective(db, principal.organization_id, user_id)
+    base = policies.effective(db, principal.organization_id, user_id, include_user=False)
     sources = set(eff.provenance.values())
     applied = (
         "user"
@@ -390,6 +391,8 @@ def effective_policy(
     return EffectivePolicyOut(
         values=eff.values,
         provenance=eff.provenance,
+        inherited=base.values,
+        inherited_provenance=base.provenance,
         enforced=sorted(ENFORCED),
         applied_from=applied,  # type: ignore[arg-type]
     )

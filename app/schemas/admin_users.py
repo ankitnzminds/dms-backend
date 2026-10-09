@@ -121,6 +121,10 @@ class PolicyPut(ApiModel):
 class EffectivePolicyOut(ApiModel):
     values: dict[str, dict[str, Any]]
     provenance: dict[str, str]
+    inherited: dict[str, dict[str, Any]] = Field(
+        description="What the user would get with no user-level overrides (default, organization, groups)."
+    )
+    inherited_provenance: dict[str, str]
     enforced: list[str] = Field(description="'tab.key' of settings the backend acts on today.")
     applied_from: Literal["default", "organization", "group", "user"]
     watermark_rules: list[str] = []

@@ -53,3 +53,11 @@ against fakes only; **Not built** = absent. Test counts are from the last full r
 * One flaky concurrency test was root-caused (ADR 0007) and fixed; if a similar intermittent
   failure reappears, capture the `upload_storage_failed` log line first.
 * Groq free-tier rate limits slow multi-step agent runs.
+
+## Admin user management and activity monitoring
+
+Implemented against the two Admin specifications (users, access levels, lifecycle, scoped policies
+with partial enforcement, CSV import/export, Admins, cursor-paged activity with export). The honest
+feature matrix, enforcement list and deferred items are in
+[`admin-user-management.md`](admin-user-management.md). Notably not supported: passwords, MFA,
+mobile devices, email delivery, backups, watermarks.

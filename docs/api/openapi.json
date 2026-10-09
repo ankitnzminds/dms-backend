@@ -2775,6 +2775,22 @@
             "title": "Enforced",
             "type": "array"
           },
+          "inherited": {
+            "additionalProperties": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "description": "What the user would get with no user-level overrides (default, organization, groups).",
+            "title": "Inherited",
+            "type": "object"
+          },
+          "inherited_provenance": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Inherited Provenance",
+            "type": "object"
+          },
           "provenance": {
             "additionalProperties": {
               "type": "string"
@@ -2802,6 +2818,8 @@
         "required": [
           "values",
           "provenance",
+          "inherited",
+          "inherited_provenance",
           "enforced",
           "applied_from"
         ],

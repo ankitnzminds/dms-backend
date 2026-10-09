@@ -141,7 +141,9 @@ class Effective(BaseModel):
     provenance: dict[str, str]  # "tab.key" -> "default" | "organization" | "group:<name>" | "user"
 
 
-def effective(db: Session, org_id: uuid.UUID, user_id: uuid.UUID) -> Effective:
+def effective(
+    db: Session, org_id: uuid.UUID, user_id: uuid.UUID, *, include_user: bool = True
+) -> Effective:
     values = defaults()
     provenance = {f"{t}.{k}": "default" for t, kv in values.items() for k in kv}
 
@@ -168,7 +170,7 @@ def effective(db: Session, org_id: uuid.UUID, user_id: uuid.UUID) -> Effective:
     ).all()
     for pol, name in group_rows:
         apply(pol.settings, f"group:{name}")
-    user_row = _load(db, org_id, PolicyScope.USER.value, user_id)
+    user_row = _load(db, org_id, PolicyScope.USER.value, user_id) if include_user else None
     if user_row:
         apply(user_row.settings, "user")
     return Effective(values=values, provenance=provenance)
