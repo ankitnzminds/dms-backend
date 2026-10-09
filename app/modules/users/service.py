@@ -30,6 +30,14 @@ def require_admin(p: Principal) -> None:
         raise ForbiddenError("Administrator access is required.")
 
 
+def assert_can_manage(p: Principal, membership: Membership) -> None:
+    """An administrator may only manage members at or below their own rank."""
+    if _ROLE_RANK[membership.role] > _ROLE_RANK[p.role] or (
+        membership.role == Role.OWNER.value and p.role != Role.OWNER.value
+    ):
+        raise ForbiddenError("You cannot modify a member with a higher role.")
+
+
 def list_members(
     db: Session,
     p: Principal,
@@ -87,9 +95,29 @@ def list_members(
     )
 
 
-def invite(
-    db: Session, p: Principal, *, email: str, display_name: str | None, role: str
-) -> MemberOut:
+def _member_out(user: User, membership: Membership) -> MemberOut:
+    return MemberOut(
+        user_id=user.id,
+        email=user.email,
+        display_name=user.display_name,
+        role=membership.role,  # type: ignore[arg-type]
+        membership_status=membership.status,  # type: ignore[arg-type]
+        user_status=user.status,  # type: ignore[arg-type]
+        last_login_at=user.last_login_at,
+    )
+
+
+def add_invited_member(
+    db: Session,
+    p: Principal,
+    *,
+    email: str,
+    display_name: str | None,
+    role: str,
+    source: str = "invitation",
+    profile: dict[str, object] | None = None,
+) -> tuple[User, Membership]:
+    """Create (or re-invite) a member inside the caller's transaction; the caller commits."""
     require_admin(p)
     if role == Role.OWNER.value and p.role != Role.OWNER.value:
         raise ForbiddenError("Only an owner can invite another owner.")
@@ -129,6 +157,9 @@ def invite(
     membership.role = role
     membership.status = MembershipStatus.INVITED.value
     membership.invited_by = p.user_id
+    membership.creation_source = source
+    for key, value in (profile or {}).items():
+        setattr(membership, key, value)
     audit.record(
         db,
         organization_id=p.organization_id,
@@ -136,18 +167,17 @@ def invite(
         action="member.invited",
         resource_type="user",
         resource_id=user.id,
-        metadata={"role": role},
+        metadata={"role": role, "source": source},
     )
+    return user, membership
+
+
+def invite(
+    db: Session, p: Principal, *, email: str, display_name: str | None, role: str
+) -> MemberOut:
+    user, membership = add_invited_member(db, p, email=email, display_name=display_name, role=role)
     db.commit()
-    return MemberOut(
-        user_id=user.id,
-        email=user.email,
-        display_name=user.display_name,
-        role=membership.role,  # type: ignore[arg-type]
-        membership_status=membership.status,  # type: ignore[arg-type]
-        user_status=user.status,  # type: ignore[arg-type]
-        last_login_at=user.last_login_at,
-    )
+    return _member_out(user, membership)
 
 
 def update_member(

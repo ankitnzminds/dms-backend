@@ -32,6 +32,25 @@ class Role(StrEnum):
     AUDITOR = "auditor"
 
 
+class AccessLevel(StrEnum):
+    FULL = "full"  # licensed account with storage
+    GUEST = "guest"  # licensed account, no storage
+    EXTERNAL = "external"  # free account, no storage
+
+
+class CreationSource(StrEnum):
+    DEFAULT = "default"
+    INVITATION = "invitation"
+    CSV_IMPORT = "csv_import"
+    DIRECTORY = "directory"
+
+
+class PolicyScope(StrEnum):
+    ORGANIZATION = "organization"
+    GROUP = "group"
+    USER = "user"
+
+
 class GroupKind(StrEnum):
     GROUP = "group"
     DEPARTMENT = "department"

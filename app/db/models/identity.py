@@ -24,7 +24,16 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, check_in, created_at_col, updated_at_col, uuid_pk
-from app.db.enums import GroupKind, MembershipStatus, OrgStatus, Role, UserStatus, values
+from app.db.enums import (
+    AccessLevel,
+    CreationSource,
+    GroupKind,
+    MembershipStatus,
+    OrgStatus,
+    Role,
+    UserStatus,
+    values,
+)
 
 DEFAULT_QUOTA_BYTES = 5 * 1024**3
 
@@ -99,11 +108,40 @@ class Membership(Base):
     invited_by: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("dms.users.id", ondelete="SET NULL")
     )
+    # Administrator-managed profile of the account *within this organization*.
+    username: Mapped[str | None] = mapped_column(String(100))
+    access_level: Mapped[str] = mapped_column(
+        String(16), default=AccessLevel.FULL.value, server_default=AccessLevel.FULL.value
+    )
+    secondary_email: Mapped[str | None] = mapped_column(String(320))
+    phone: Mapped[str | None] = mapped_column(String(32))
+    notes: Mapped[str | None] = mapped_column(Text)
+    account_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    account_locked: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    creation_source: Mapped[str] = mapped_column(
+        String(16),
+        default=CreationSource.DEFAULT.value,
+        server_default=CreationSource.DEFAULT.value,
+    )
     created_at: Mapped[datetime] = created_at_col()
     updated_at: Mapped[datetime] = updated_at_col()
 
     __table_args__ = (
         UniqueConstraint("organization_id", "user_id", name="uq_memberships_org_user"),
+        Index(
+            "uq_memberships_org_username",
+            "organization_id",
+            func.lower(username),
+            unique=True,
+            postgresql_where=text("username IS NOT NULL"),
+        ),
+        CheckConstraint(
+            check_in("access_level", values(AccessLevel), "access_level"), name="access_level"
+        ),
+        CheckConstraint(
+            check_in("creation_source", values(CreationSource), "creation_source"),
+            name="creation_source",
+        ),
         CheckConstraint(check_in("role", values(Role), "role"), name="role"),
         CheckConstraint(check_in("status", values(MembershipStatus), "status"), name="status"),
         Index("ix_memberships_user", "user_id"),

@@ -115,6 +115,21 @@ def resolve_principal(
             Organization.status == OrgStatus.ACTIVE.value,
         )
     ).all()
+    blocked = [
+        m
+        for m, _ in rows
+        if m.account_locked or (m.account_expires_at and m.account_expires_at <= now)
+    ]
+    rows = [r for r in rows if r[0] not in blocked]
+    if blocked and not rows:
+        audit.record_independent(
+            organization_id=blocked[0].organization_id,
+            actor_user_id=user.id,
+            action="auth.rejected_locked_account",
+            outcome=AuditOutcome.DENIED,
+            metadata={"locked": blocked[0].account_locked},
+        )
+        raise ForbiddenError("This account is locked or has expired.", code="account_locked")
     if not rows:
         raise ForbiddenError("No active organization membership.", code="no_membership")
 

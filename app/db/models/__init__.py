@@ -30,6 +30,7 @@ from app.db.models.platform import (
     RecentDocument,
     UserPreference,
 )
+from app.db.models.policy import Policy
 from app.db.models.processing import DocumentDerivative, DocumentText, MetadataDefinition
 from app.db.models.signatures import (
     SignatureEvent,
@@ -49,6 +50,7 @@ from app.db.models.workflows import (
 
 __all__ = [
     "OfficeLock",
+    "Policy",
     "Comment",
     "AccessRequest",
     "AgentRun",

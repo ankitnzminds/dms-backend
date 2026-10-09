@@ -51,6 +51,11 @@ def create(
 
     Honors the user's preferences: with in-app disabled the record is kept but pre-read; an
     e-mail is queued (through the outbox, never inline) only if enabled and a sender exists."""
+    from app.modules.policies import service as policies
+
+    notif = policies.effective(db, organization_id, user_id).values["notifications"]
+    if notif["disable_all"] or (type_.startswith("share.") and notif["disable_share"]):
+        return False  # administrator policy suppresses it
     in_app, email = preference(db, organization_id, user_id, group_of(type_))
     stmt = (
         pg_insert(Notification)

@@ -23,6 +23,7 @@ from app.modules.authorization.service import AuthorizationService
 from app.modules.documents.downloads import _servable_version
 from app.modules.items.common import lock_active
 from app.modules.office import discovery, formats
+from app.modules.policies import service as policies
 from app.schemas.office import OfficeSessionOut, OfficeStatus
 
 _TOKEN_TYPE = "dms-wopi"  # noqa: S105
@@ -115,6 +116,8 @@ def create_session(
             reason = "You do not have permission to edit this file."
         elif lock_active(doc) and doc.locked_by != p.user_id:
             reason = "This file is checked out by someone else."
+        elif not policies.get(db, p.organization_id, p.user_id, "user_policy", "enable_web_edit"):
+            reason = "Web editing is turned off for your account by an administrator."
         else:
             granted = "edit"
 

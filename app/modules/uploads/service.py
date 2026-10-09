@@ -29,16 +29,18 @@ from app.core.errors import (
     ForbiddenError,
     NotFoundError,
     PayloadTooLargeError,
+    QuotaExceededError,
     ValidationFailed,
 )
 from app.core.logging import get_logger
 from app.core.metrics import UPLOADS
 from app.core.naming import split_extension, validate_name
 from app.db.enums import Action, AuditOutcome, DocumentStatus, ScanStatus, UploadState
-from app.db.models import Document, DocumentVersion, StorageLocation, UploadSession
+from app.db.models import Document, DocumentVersion, Membership, StorageLocation, UploadSession
 from app.modules.audit import service as audit
 from app.modules.authorization.service import AuthorizationService
 from app.modules.folders.common import ensure_name_free, plain_path
+from app.modules.identity.principal import Principal
 from app.modules.outbox import service as outbox
 from app.modules.quota import service as quota
 
@@ -130,6 +132,34 @@ def _existing_for_key(db: Session, p, key: str) -> UploadSession | None:  # noqa
     )
 
 
+def _enforce_account_limits(db: Session, p: Principal, size_bytes: int) -> None:
+    """Access level and per-user policy limits (guest/external accounts have no storage)."""
+    from app.modules.admin_users.service import used_bytes_by
+    from app.modules.policies import service as policies
+
+    level = db.scalar(
+        select(Membership.access_level).where(
+            Membership.organization_id == p.organization_id, Membership.user_id == p.user_id
+        )
+    )
+    if level and level != "full":
+        raise ForbiddenError(
+            f"{level.capitalize()} accounts have no storage and cannot upload.",
+            code="no_storage_access",
+        )
+    values = policies.effective(db, p.organization_id, p.user_id).values
+    max_upload = int(values["user_policy"]["max_upload_bytes"])
+    if max_upload and size_bytes > max_upload:
+        raise PayloadTooLargeError(
+            f"Your policy limits uploads to {max_upload} bytes.", code="policy_upload_limit"
+        )
+    quota = int(values["general"]["user_storage_quota_bytes"])
+    if quota and used_bytes_by(db, p.organization_id, p.user_id) + size_bytes > quota:
+        raise QuotaExceededError(
+            "Your personal storage quota would be exceeded.", code="user_quota"
+        )
+
+
 def initiate(
     db: Session,
     authz: AuthorizationService,
@@ -154,6 +184,7 @@ def initiate(
         )
     if sha256 is not None and not re.fullmatch(r"[0-9a-fA-F]{64}", sha256):
         raise ValidationFailed("sha256 must be 64 hexadecimal characters.")
+    _enforce_account_limits(db, p, size_bytes)
 
     if idempotency_key:
         existing = _existing_for_key(db, p, idempotency_key)

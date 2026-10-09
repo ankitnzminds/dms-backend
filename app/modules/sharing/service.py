@@ -45,6 +45,7 @@ from app.modules.folders.common import plain_path
 from app.modules.folders.service import mask_policy, to_breadcrumb_out
 from app.modules.organizations.service import get_org, org_settings
 from app.modules.outbox import service as outbox
+from app.modules.policies import service as policies
 from app.schemas.common import UserRef
 from app.schemas.sharing import (
     ReceivedShare,
@@ -159,7 +160,15 @@ def create_share(
 
     now = datetime.now(UTC)
     settings = org_settings(get_org(db, p.organization_id))
+    pol = policies.effective(db, p.organization_id, p.user_id).values["general"]
+    if pol["share_mode"] == "no_shares":
+        authz.deny(resource_type.value, resource_id, Action.SHARE, "policy_no_shares")
+        raise ForbiddenError(
+            "Sharing is turned off for your account by an administrator.", code="policy_no_shares"
+        )
     expires_at = payload.expires_at
+    if expires_at is None and pol["default_share_expiry_days"]:
+        expires_at = now + timedelta(days=int(pol["default_share_expiry_days"]))
     if expires_at is not None:
         if expires_at.tzinfo is None:
             raise ValidationFailed("expires_at must include a timezone.")
