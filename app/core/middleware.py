@@ -90,9 +90,15 @@ class RequestContextMiddleware:
                 response_headers: list[tuple[bytes, bytes]] = list(message.get("headers", []))
                 present = {k.lower() for k, _ in response_headers}
                 docs = path in _DOCS_PATHS
+                csp = next(
+                    (v for k, v in response_headers if k.lower() == b"content-security-policy"), b""
+                )
+                framing_allowed = b"frame-ancestors" in csp and b"frame-ancestors 'none'" not in csp
                 for key, value in SECURITY_HEADERS.items():
                     if key in present or (docs and key == b"content-security-policy"):
                         continue
+                    if key == b"x-frame-options" and framing_allowed:
+                        continue  # CSP frame-ancestors is authoritative; XFO would override it
                     response_headers.append((key, value))
                 response_headers.append((b"x-request-id", request_id.encode()))
                 if self.settings.is_production_like:

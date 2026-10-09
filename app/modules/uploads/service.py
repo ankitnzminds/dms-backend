@@ -498,6 +498,9 @@ def finalize(
                 "path": f"{plain_path(db, p.organization_id, doc.folder_id)}/{doc.name}",
             },
         )
+        from app.modules.documents.service import touch_recent
+
+        touch_recent(db, p.user_id, doc, "uploaded")
         db.commit()
     except IntegrityError as exc:
         db.rollback()

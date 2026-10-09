@@ -5,20 +5,30 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, Response
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, Header, Query, Response
+from sqlalchemy import func, or_, select
 
 from app.adapters.identity.base import VerifiedIdentity
-from app.api.deps import CurrentPrincipal, DbSession, get_verified_identity
+from app.api.deps import CurrentPrincipal, DbSession, get_verified_identity, limited
 from app.core.errors import ForbiddenError, ValidationFailed
 from app.db.enums import UserStatus
-from app.db.models import Organization
+from app.db.models import Membership, Organization, User
 from app.modules.identity.service import find_or_bind_user
 from app.modules.organizations import service as orgs
 from app.modules.users import service as users
 from app.schemas.admin import MeOut, OrganizationOut, OrganizationUpdate, UsageOut
+from app.schemas.common import UserRef
 
 router = APIRouter(tags=["identity"])
+
+# Settings that change what a member can do (so forms can pre-validate); nothing sensitive.
+_MEMBER_VISIBLE_SETTINGS = (
+    "mask_shared_breadcrumbs",
+    "max_share_days",
+    "require_share_expiry",
+    "signatures_enabled",
+    "allow_external_signers",
+)
 
 _ADMIN_CAPS = [
     "administer",
@@ -98,7 +108,7 @@ def get_organization(db: DbSession, principal: CurrentPrincipal) -> Organization
         status=org.status,
         settings=settings
         if principal.is_admin
-        else {"mask_shared_breadcrumbs": settings["mask_shared_breadcrumbs"]},
+        else {k: settings[k] for k in _MEMBER_VISIBLE_SETTINGS},
         quota_bytes=org.quota_bytes,
         root_folder_id=orgs.root_folder_id(db, org.id),
     )
@@ -140,5 +150,37 @@ def organization_usage(db: DbSession, principal: CurrentPrincipal) -> UsageOut:
     if not principal.is_admin:
         # Members see their organization's quota usage only, not workforce/security counters.
         for key in ("users", "groups", "pending_scans", "quarantined_documents", "versions"):
-            data[key] = 0
+            data[key] = None
     return UsageOut(**data)
+
+
+@router.get(
+    "/members/lookup",
+    response_model=list[UserRef],
+    summary="Find active members by name/e-mail (for choosing recipients; minimal fields)",
+    dependencies=[limited("member_lookup")],
+)
+def lookup_members(
+    db: DbSession, principal: CurrentPrincipal, q: str = Query(min_length=2, max_length=100)
+) -> list[UserRef]:
+    term = q.strip().lower().replace("%", "").replace("_", "")
+    if len(term) < 2:  # wildcard-only queries must not enumerate the directory
+        return []
+    like = f"%{term}%"
+    rows = db.execute(
+        select(User.id, User.display_name, User.email)
+        .join(Membership, Membership.user_id == User.id)
+        .where(
+            Membership.organization_id == principal.organization_id,
+            Membership.status == "active",
+            User.status == "active",
+            User.id != principal.user_id,
+            or_(
+                func.lower(User.email).like(like),
+                func.lower(func.coalesce(User.display_name, "")).like(like),
+            ),
+        )
+        .order_by(User.email)
+        .limit(10)
+    ).all()
+    return [UserRef(id=i, display_name=n, email=e) for i, n, e in rows]

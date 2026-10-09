@@ -166,7 +166,7 @@ def redeem_download(token: str, request: Request, db: DbSession) -> StreamingRes
     stream = downloads.open_stream(servable)
     db.close()  # release the connection before streaming
     inline = servable.disposition == "inline"
-    origins = " ".join(get_settings().cors_origins) or "'none'"
+    origins = " ".join(get_settings().preview_frame_ancestors) or "'none'"
     headers = {
         "Content-Disposition": downloads.content_disposition(
             servable.disposition, servable.filename

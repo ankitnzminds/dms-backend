@@ -8,7 +8,7 @@ from typing import Literal
 
 from pydantic import Field, model_validator
 
-from app.schemas.common import ApiModel, BreadcrumbSegmentOut, UserRef
+from app.schemas.common import ActionName, ApiModel, BreadcrumbSegmentOut, UserRef
 
 
 class RecipientIn(ApiModel):
@@ -29,7 +29,7 @@ class RecipientIn(ApiModel):
 
 class ShareCreate(ApiModel):
     recipients: list[RecipientIn] = Field(min_length=1, max_length=50)
-    actions: list[str] = Field(min_length=1, max_length=20)
+    actions: list[ActionName] = Field(min_length=1, max_length=20)
     expires_at: datetime | None = None
     message: str | None = Field(None, max_length=1000)
 
@@ -47,7 +47,7 @@ class ShareOut(ApiModel):
     resource_id: uuid.UUID
     resource_name: str | None
     created_by: UserRef
-    actions: list[str]
+    actions: list[ActionName]
     created_at: datetime
     expires_at: datetime | None
     revoked_at: datetime | None
@@ -65,7 +65,7 @@ class ReceivedShare(ApiModel):
     name: str
     status: Literal["active", "expired", "revoked"]
     shared_by: UserRef
-    actions: list[str]
+    actions: list[ActionName]
     shared_at: datetime
     expires_at: datetime | None
     message: str | None = None
@@ -79,7 +79,7 @@ class ReceivedShare(ApiModel):
 class PermissionGrantIn(ApiModel):
     subject_type: Literal["user", "group", "organization"]
     subject_id: uuid.UUID | None = None
-    actions: list[str] = Field(min_length=1, max_length=20)
+    actions: list[ActionName] = Field(min_length=1, max_length=20)
     inherit: bool = True
     expires_at: datetime | None = None
 
@@ -97,7 +97,7 @@ class PermissionGrantOut(ApiModel):
     subject_type: Literal["user", "group", "organization"]
     subject_id: uuid.UUID | None
     subject_name: str | None = None
-    actions: list[str]
+    actions: list[ActionName]
     inherit: bool
     expires_at: datetime | None
     revoked_at: datetime | None

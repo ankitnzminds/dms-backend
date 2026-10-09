@@ -14,6 +14,7 @@ from sqlalchemy import text
 from app import __version__
 from app.api.v1 import (
     admin,
+    directory,
     documents,
     folders,
     governance,
@@ -98,6 +99,7 @@ def create_app() -> FastAPI:
         metadata,
         workflows,
         signatures,
+        directory,
         admin,
     ):
         v1.include_router(module.router)

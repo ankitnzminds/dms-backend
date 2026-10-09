@@ -90,6 +90,8 @@ class SignatureRecipient(Base):
     )  # set for internal signers
     order_index: Mapped[int] = mapped_column(Integer, default=0)
     provider_recipient_id: Mapped[str | None] = mapped_column(String(200))
+    # Secret-equivalent link (contains the signer's token). Only ever returned to that signer.
+    signing_url: Mapped[str | None] = mapped_column(String(1000))
     status: Mapped[str] = mapped_column(String(16), default="pending")
     signed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = created_at_col()

@@ -30,6 +30,7 @@ SIGNATURE_HEADER = "x-fake-signature"
 class _Doc:
     def __init__(self, content: bytes, signers: list[SignerSpec]) -> None:
         self.content = content
+        self.send_email = False
         self.recipients: dict[str, tuple[str, datetime | None]] = {
             s.email: ("pending", None) for s in signers
         }
@@ -48,7 +49,7 @@ class FakeSignatureProvider:
         self._secret = webhook_secret.encode()
 
     # ---- provider contract
-    def create_request(self, *, title, message, filename, content, size, signers):  # noqa: ANN001, ANN201
+    def create_request(self, *, title, message, filename, content, size, signers, send_email=False):  # noqa: ANN001, ANN201
         if self.unavailable or FakeSignatureProvider.fail_next_create:
             FakeSignatureProvider.fail_next_create = False
             raise SignatureProviderError("provider unavailable")
@@ -56,7 +57,15 @@ class FakeSignatureProvider:
         rid = f"fake-{uuid.uuid4().hex[:12]}"
         with self._lock:
             self._docs[rid] = _Doc(data, signers)
-        return CreatedRequest(rid, {s.email: f"{rid}-{i}" for i, s in enumerate(signers)})
+        self._docs[rid].send_email = send_email
+        return CreatedRequest(
+            rid,
+            {s.email: f"{rid}-{i}" for i, s in enumerate(signers)},
+            {
+                s.email: f"https://fake-sign.example/sign/{rid}-{i}-token"
+                for i, s in enumerate(signers)
+            },
+        )
 
     def get_state(self, provider_request_id: str) -> ProviderState:
         if self.unavailable:

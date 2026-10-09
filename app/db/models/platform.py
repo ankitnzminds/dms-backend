@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -168,3 +169,19 @@ class RecentDocument(Base):
         ),
         Index("ix_recent_user_time", "user_id", "organization_id", text("last_accessed_at DESC")),
     )
+
+
+class NotificationPreference(Base):
+    """Per-user delivery preferences by notification group (in-app and e-mail)."""
+
+    __tablename__ = "notification_preferences"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("dms.users.id", ondelete="CASCADE"), primary_key=True
+    )
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("dms.organizations.id", ondelete="CASCADE"), primary_key=True
+    )
+    group: Mapped[str] = mapped_column(String(24), primary_key=True)
+    in_app: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    email: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")

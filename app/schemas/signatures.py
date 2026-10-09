@@ -59,7 +59,16 @@ class SignatureRequestOut(ApiModel):
     completed_at: datetime | None
     signers: list[SignerOut]
     artifact: SignatureArtifactOut | None
+    my_signing_available: bool = Field(
+        False, description="The caller is a pending internal signer and can open the signing page."
+    )
     events: list[SignatureEventOut]
+
+
+class SigningSessionOut(ApiModel):
+    url: str = Field(
+        description="Signing page for the caller only. Treat like a password; do not store or log."
+    )
 
 
 class SignatureCapabilities(ApiModel):

@@ -430,6 +430,48 @@ def handle_signature_finished(db: Session, event: OutboxEvent, ctx: WorkerContex
     db.commit()
 
 
+def handle_directory_sync(db: Session, event: OutboxEvent, ctx: WorkerContext) -> None:
+    from app.db.session import get_sessionmaker
+    from app.modules.directory.service import execute_run
+
+    execute_run(get_sessionmaker(), event.aggregate_id)
+
+
+def handle_notification_email(db: Session, event: OutboxEvent, ctx: WorkerContext) -> None:
+    """Deliver a notification by e-mail. Content is deliberately minimal and carries no token:
+    e-mail is a pointer to the app, not an authorization (the link requires a normal sign-in)."""
+    from app.adapters.email.base import EmailMessage
+    from app.db.models import Notification, Organization
+
+    if not mark_processed(db, "notification.email", event.id):
+        db.rollback()
+        return  # duplicate delivery
+    notification = db.get(Notification, event.aggregate_id)
+    user = db.get(User, notification.user_id) if notification else None
+    if notification is None or user is None or user.status != "active":
+        db.commit()
+        return
+    org = db.get(Organization, notification.organization_id)
+    include_titles = bool(((org.settings if org else {}) or {}).get("email_include_titles", False))
+    settings = ctx.settings
+    subject = f"[{settings.app_name}] New notification"
+    lines = ["You have a new notification."]
+    if include_titles:
+        lines.append(f"\n{notification.title}")
+    lines.append(
+        f"\nOpen {settings.web_base_url.rstrip('/')}/notifications to view it (sign-in required)."
+    )
+    ctx.email.send(
+        EmailMessage(
+            to=user.email,
+            subject=subject,
+            body_text="\n".join(lines),
+            idempotency_key=str(event.id),
+        )
+    )
+    db.commit()
+
+
 def handle_extract(db: Session, event: OutboxEvent, ctx: WorkerContext) -> None:
     from app.modules.processing.service import process_version
 
@@ -437,6 +479,8 @@ def handle_extract(db: Session, event: OutboxEvent, ctx: WorkerContext) -> None:
 
 
 HANDLERS: dict[str, Handler] = {
+    "notification.email": handle_notification_email,
+    "directory.sync": handle_directory_sync,
     "signature.event": handle_signature_event,
     "signature.finished": handle_signature_finished,
     "workflow.task_assigned": handle_workflow_task_assigned,

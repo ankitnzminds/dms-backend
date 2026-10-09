@@ -12,7 +12,12 @@ from app.core.errors import ErrorResponse
 from app.core.ratelimit import rate_limit
 from app.modules.signatures import service as sig
 from app.schemas.common import Page
-from app.schemas.signatures import SignatureCapabilities, SignatureRequestIn, SignatureRequestOut
+from app.schemas.signatures import (
+    SignatureCapabilities,
+    SignatureRequestIn,
+    SignatureRequestOut,
+    SigningSessionOut,
+)
 
 router = APIRouter(tags=["signatures"], responses={404: {"model": ErrorResponse}})
 
@@ -58,13 +63,15 @@ def document_requests(
 def list_requests(
     db: DbSession,
     principal: CurrentPrincipal,
-    scope: str = Query("mine", pattern="^(mine|all)$"),
+    scope: str = Query(
+        "mine",
+        pattern="^(mine|all|to_sign)$",
+        description="mine = I requested; to_sign = I am a signer; all = admins",
+    ),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ) -> Page[SignatureRequestOut]:
-    items, total = sig.list_mine(
-        db, principal, scope_all=scope == "all", limit=limit, offset=offset
-    )
+    items, total = sig.list_mine(db, principal, scope=scope, limit=limit, offset=offset)
     return Page[SignatureRequestOut](items=items, total=total, limit=limit, offset=offset)
 
 
@@ -83,6 +90,30 @@ def get_request(request_id: uuid.UUID, db: DbSession, authz: Authz) -> Signature
 def cancel_request(request_id: uuid.UUID, db: DbSession, principal: CurrentPrincipal) -> Response:
     sig.cancel_request(db, principal, request_id)
     return Response(status_code=204)
+
+
+@router.post(
+    "/signature-requests/{request_id}/signing-session",
+    response_model=SigningSessionOut,
+    summary="Open the signing page (embed in an iframe or new tab) - only for the pending signer",
+    dependencies=[limited("signing_session", sensitive=True)],
+)
+def signing_session(
+    request_id: uuid.UUID, db: DbSession, principal: CurrentPrincipal
+) -> SigningSessionOut:
+    return SigningSessionOut(url=sig.open_signing_session(db, principal, request_id))
+
+
+@router.post(
+    "/signature-requests/{request_id}/refresh",
+    response_model=SignatureRequestOut,
+    summary="Re-read the status from the provider now (after signing; webhook may be delayed)",
+    dependencies=[limited("signature_refresh", sensitive=True)],
+)
+def refresh_request(request_id: uuid.UUID, db: DbSession, authz: Authz) -> SignatureRequestOut:
+    from app.db.session import get_sessionmaker
+
+    return sig.refresh_request(get_sessionmaker(), db, authz, request_id)
 
 
 @router.post(

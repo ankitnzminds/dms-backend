@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from fastapi import APIRouter, Query, Response
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 
 from app.api.deps import CurrentPrincipal, DbSession
@@ -15,6 +16,7 @@ from app.db.enums import DocumentStatus, ScanStatus
 from app.db.models import Document, DocumentVersion
 from app.modules.audit import queries as audit_queries
 from app.modules.groups import service as groups
+from app.modules.reports import service as reports
 from app.modules.users import service as users
 from app.schemas.admin import (
     AuditEventOut,
@@ -221,3 +223,42 @@ def quarantine(
 
 
 __all__ = ["DocumentStatus", "router"]
+
+
+# ---- compliance reporting
+@router.get("/audit-events/export", summary="Download the filtered audit trail as CSV (audited)")
+def export_audit(
+    db: DbSession,
+    principal: CurrentPrincipal,
+    action: str | None = Query(None, max_length=100),
+    actor_user_id: uuid.UUID | None = None,
+    resource_type: str | None = Query(None, max_length=50),
+    outcome: Literal["success", "denied", "failure"] | None = None,
+    since: datetime | None = None,
+    until: datetime | None = None,
+) -> StreamingResponse:
+    stream = reports.export_audit_csv(
+        db,
+        principal,
+        action=action,
+        actor_user_id=actor_user_id,
+        resource_type=resource_type,
+        outcome=outcome,
+        since=since,
+        until=until,
+    )
+    return StreamingResponse(
+        stream,
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": 'attachment; filename="audit-events.csv"',
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+@router.get("/reports/summary", summary="Activity and compliance summary from real records")
+def report_summary(
+    db: DbSession, principal: CurrentPrincipal, days: int = Query(30, ge=1, le=365)
+) -> dict[str, Any]:
+    return reports.activity_summary(db, principal, days)

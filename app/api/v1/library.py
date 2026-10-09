@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Literal
 
 from fastapi import APIRouter, Query, Response
+from pydantic import Field
 
 from app.api.deps import Authz, CurrentPrincipal, DbSession, limited
 from app.modules.documents import service as documents
@@ -129,3 +130,47 @@ class ReadAllOut(ApiModel):
 )
 def read_all_notifications(db: DbSession, principal: CurrentPrincipal) -> ReadAllOut:
     return ReadAllOut(updated=notifications.mark_all_read(db, principal))
+
+
+class NotificationPreferenceModel(ApiModel):
+    group: Literal["sharing", "workflow", "signature", "document", "other"]
+    in_app: bool
+    email: bool
+
+
+class NotificationPreferencesOut(ApiModel):
+    email_available: bool = Field(description="An e-mail sender is configured on this deployment.")
+    preferences: list[NotificationPreferenceModel]
+
+
+@router.get(
+    "/notification-preferences",
+    response_model=NotificationPreferencesOut,
+    summary="My notification delivery preferences",
+)
+def get_preferences(db: DbSession, principal: CurrentPrincipal) -> NotificationPreferencesOut:
+    from app.core.config import get_settings
+
+    return NotificationPreferencesOut(
+        email_available=get_settings().email_provider != "none",
+        preferences=[
+            NotificationPreferenceModel(**p) for p in notifications.get_preferences(db, principal)
+        ],  # type: ignore[arg-type]
+    )
+
+
+@router.put(
+    "/notification-preferences",
+    response_model=NotificationPreferencesOut,
+    summary="Update my notification preferences",
+)
+def put_preferences(
+    body: list[NotificationPreferenceModel], db: DbSession, principal: CurrentPrincipal
+) -> NotificationPreferencesOut:
+    from app.core.config import get_settings
+
+    updated = notifications.set_preferences(db, principal, [m.model_dump() for m in body])
+    return NotificationPreferencesOut(
+        email_available=get_settings().email_provider != "none",
+        preferences=[NotificationPreferenceModel(**p) for p in updated],  # type: ignore[arg-type]
+    )

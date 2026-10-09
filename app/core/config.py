@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     public_api_base_url: str = "http://localhost:8000"
     cors_allowed_origins: str = "http://localhost:3000"
     log_level: str = "INFO"
+    # Origins allowed to embed inline previews (CSP frame-ancestors). Empty = CORS origins.
+    frame_ancestors: str = ""
     metrics_token: SecretStr | None = None  # when unset, /metrics is disabled
 
     # --- database (server side only) ---
@@ -67,10 +69,12 @@ class Settings(BaseSettings):
     ocr_command: str = ""  # path to a tesseract binary; empty = OCR disabled
 
     # --- e-signature (provider adapter; 'none' disables the feature) ---
-    signature_provider: Literal["none", "fake", "documenso"] = "none"
-    documenso_base_url: str = ""
+    # "auto" = Documenso when DOCUMENSO_URL and DOCUMENSO_API_KEY are set, otherwise disabled.
+    signature_provider: Literal["auto", "none", "fake", "documenso"] = "auto"
+    documenso_url: str = ""
     documenso_api_key: SecretStr | None = None
-    signature_webhook_secret: SecretStr | None = None
+    documenso_webhook_secret: SecretStr | None = None
+    signature_webhook_secret: SecretStr | None = None  # fake provider only
     signature_reconcile_minutes: int = 15
 
     # --- rate limiting (per process; see docs/security) ---
@@ -85,15 +89,34 @@ class Settings(BaseSettings):
     outbox_lock_seconds: int = 300
 
     # --- email (adapter; no provider configured by default) ---
-    email_provider: Literal["none", "log"] = "none"
+    email_provider: Literal["none", "log", "smtp"] = "none"
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: SecretStr | None = None
+    smtp_from: str = ""
+    smtp_starttls: bool = True
+    smtp_implicit_tls: bool = False
+    web_base_url: str = "http://localhost:3000"  # used for links in e-mails (no tokens)
 
     @property
     def is_production_like(self) -> bool:
         return self.app_env in ("staging", "production")
 
     @property
+    def effective_signature_provider(self) -> str:
+        if self.signature_provider != "auto":
+            return self.signature_provider
+        return "documenso" if self.documenso_url and self.documenso_api_key else "none"
+
+    @property
     def cors_origins(self) -> list[str]:
         return [o.strip() for o in self.cors_allowed_origins.split(",") if o.strip()]
+
+    @property
+    def preview_frame_ancestors(self) -> list[str]:
+        raw = [o.strip() for o in self.frame_ancestors.split(",") if o.strip()]
+        return raw or self.cors_origins
 
     @property
     def blocked_extension_set(self) -> frozenset[str]:
@@ -113,8 +136,11 @@ class Settings(BaseSettings):
                 )
             if self.signature_provider == "fake":
                 problems.append("SIGNATURE_PROVIDER=fake is development/test only")
-            if self.signature_provider != "none" and self.signature_webhook_secret is None:
-                problems.append("SIGNATURE_WEBHOOK_SECRET is required when signatures are enabled")
+            if (
+                self.effective_signature_provider == "documenso"
+                and self.documenso_webhook_secret is None
+            ):
+                problems.append("DOCUMENSO_WEBHOOK_SECRET is required when Documenso is enabled")
             if "*" in self.cors_origins:
                 problems.append("CORS_ALLOWED_ORIGINS must not contain '*'")
             if (

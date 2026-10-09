@@ -8,7 +8,7 @@ from typing import Any, Literal
 
 from pydantic import Field
 
-from app.schemas.common import ApiModel
+from app.schemas.common import ApiModel, UploadStateName
 
 RoleName = Literal["owner", "admin", "member", "auditor"]
 MembershipStatusName = Literal["invited", "active", "suspended", "removed"]
@@ -101,11 +101,11 @@ class UsageOut(ApiModel):
     reserved_bytes: int
     documents: int
     folders: int
-    versions: int
-    pending_scans: int
-    quarantined_documents: int
-    users: int
-    groups: int
+    versions: int | None = Field(None, description="Null for non-administrators.")
+    pending_scans: int | None = None
+    quarantined_documents: int | None = None
+    users: int | None = None
+    groups: int | None = None
     organization_status: str
 
 
@@ -140,7 +140,7 @@ class UploadSessionOut(ApiModel):
     filename: str
     declared_size: int
     content_type: str
-    state: str
+    state: UploadStateName
     expires_at: datetime
     upload_url: str = Field(
         description="PUT the raw bytes here (Content-Type: application/octet-stream)."

@@ -3,11 +3,33 @@
 from __future__ import annotations
 
 import uuid
-from typing import Generic, TypeVar
+from typing import Generic, Literal, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
 T = TypeVar("T")
+
+ActionName = Literal[
+    "discover",
+    "view",
+    "preview",
+    "download",
+    "upload_version",
+    "create_child",
+    "edit_metadata",
+    "rename",
+    "move",
+    "copy",
+    "share",
+    "manage_access",
+    "delete",
+    "restore",
+    "comment",
+    "export",
+    "administer",
+]
+Classification = Literal["public", "internal", "confidential", "restricted"]
+UploadStateName = Literal["initiated", "uploaded", "finalized", "failed", "cancelled", "expired"]
 
 
 class ApiModel(BaseModel):

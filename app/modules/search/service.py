@@ -25,7 +25,7 @@ from app.modules.authorization.service import AuthorizationService
 from app.modules.folders.common import subtree_folder_ids
 from app.modules.folders.service import mask_policy, to_breadcrumb_out
 from app.modules.metadata.service import parse_filters
-from app.schemas.common import ApiModel, BreadcrumbSegmentOut
+from app.schemas.common import ActionName, ApiModel, BreadcrumbSegmentOut
 
 MAX_CANDIDATES = 500
 SNIPPET_SOURCE_CHARS = 200_000
@@ -36,7 +36,7 @@ class SearchResult(ApiModel):
     id: uuid.UUID
     name: str
     updated_at: datetime
-    permissions: list[str]
+    permissions: list[ActionName]
     breadcrumb: list[BreadcrumbSegmentOut]
     size_bytes: int | None = None
     content_type: str | None = None

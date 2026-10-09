@@ -1,12 +1,19 @@
 """Import every model so Base.metadata is complete for Alembic and tests."""
 
 from app.db.models.access import PermissionGrant, ShareGrant, ShareRecipient
+from app.db.models.directory import (
+    DirectoryGroupLink,
+    DirectorySource,
+    DirectorySyncRun,
+    DirectoryUserLink,
+)
 from app.db.models.governance import LegalHold, LegalHoldItem, RetentionPolicy
 from app.db.models.identity import Group, GroupMembership, Membership, Organization, User
 from app.db.models.platform import (
     AuditEvent,
     DocumentStar,
     Notification,
+    NotificationPreference,
     OutboxEvent,
     ProcessedEvent,
     RecentDocument,
@@ -29,6 +36,10 @@ from app.db.models.workflows import (
 )
 
 __all__ = [
+    "DirectoryGroupLink",
+    "DirectorySource",
+    "DirectorySyncRun",
+    "DirectoryUserLink",
     "SignatureEvent",
     "SignatureRecipient",
     "SignatureRequest",
@@ -53,6 +64,7 @@ __all__ = [
     "GroupMembership",
     "Membership",
     "Notification",
+    "NotificationPreference",
     "Organization",
     "OutboxEvent",
     "PermissionGrant",

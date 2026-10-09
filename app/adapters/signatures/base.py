@@ -31,6 +31,8 @@ class SignerSpec:
 class CreatedRequest:
     provider_request_id: str
     recipient_ids: dict[str, str] = field(default_factory=dict)  # email -> provider recipient id
+    # email -> URL the signer opens. Secret-equivalent: never logged, audited or listed.
+    signing_urls: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -66,6 +68,7 @@ class SignatureProvider(Protocol):
         content: Iterator[bytes],
         size: int,
         signers: list[SignerSpec],
+        send_email: bool = False,
     ) -> CreatedRequest: ...
 
     def get_state(self, provider_request_id: str) -> ProviderState: ...

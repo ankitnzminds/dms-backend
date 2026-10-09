@@ -58,9 +58,27 @@ class WorkerContext:
 Handler = Callable[[Session, OutboxEvent, WorkerContext], None]
 
 
+def build_email_sender(settings: Settings) -> EmailSender:
+    if settings.email_provider == "smtp":
+        from app.adapters.email.smtp import SmtpEmailSender
+
+        return SmtpEmailSender(
+            settings.smtp_host,
+            settings.smtp_port,
+            settings.smtp_from,
+            settings.smtp_username or None,
+            settings.smtp_password.get_secret_value() if settings.smtp_password else None,
+            starttls=settings.smtp_starttls,
+            implicit_tls=settings.smtp_implicit_tls,
+        )
+    return LogEmailSender()
+
+
 def build_context(settings: Settings | None = None) -> WorkerContext:
     settings = settings or get_settings()
-    return WorkerContext(settings=settings, scanner=build_scanner(settings), email=LogEmailSender())
+    return WorkerContext(
+        settings=settings, scanner=build_scanner(settings), email=build_email_sender(settings)
+    )
 
 
 def backoff_seconds(attempts: int) -> float:

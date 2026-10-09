@@ -152,6 +152,11 @@ def create_request(
 
     version = db.get(DocumentVersion, doc.current_version_id)
     assert version is not None and version.scan_status == ScanStatus.CLEAN.value
+    if version.content_type != "application/pdf":
+        raise ValidationFailed(
+            "Only PDF documents can be sent for signature. Convert the file to PDF first.",
+            code="pdf_required",
+        )
     title = (body.title or doc.name)[:300]
     req = SignatureRequest(
         id=uuid.uuid4(),
@@ -209,6 +214,9 @@ def create_request(
             content=storage.stream_object(location.bucket, version.object_key),
             size=version.size_bytes,
             signers=signers,
+            # External signers have no DMS account, so the provider e-mails them; internal-only
+            # requests are signed inside the DMS (embedded signing page).
+            send_email=bool(set(emails) - set(internal)),
         )
     except (SignatureProviderError, StorageError) as exc:
         req = db.get(SignatureRequest, req.id)  # type: ignore[assignment]
@@ -233,6 +241,7 @@ def create_request(
     req.state, req.provider_request_id = "sent", created.provider_request_id
     for r in _recipients(db, req.id):
         r.provider_recipient_id = created.recipient_ids.get(r.email)
+        r.signing_url = created.signing_urls.get(r.email)
     audit.record(
         db,
         organization_id=p.organization_id,
@@ -650,7 +659,9 @@ def reconcile_stale(factory: sessionmaker[Session], limit: int = 50) -> dict[str
 
 
 # ------------------------------------------------------------------ read models
-def _out(db: Session, req: SignatureRequest) -> SignatureRequestOut:
+def _out(
+    db: Session, req: SignatureRequest, viewer_id: uuid.UUID | None = None
+) -> SignatureRequestOut:
     users = {u.id: u for u in db.scalars(select(User).where(User.id == req.requested_by))}
     u = users.get(req.requested_by)
     doc = db.get(Document, req.document_id)
@@ -700,6 +711,11 @@ def _out(db: Session, req: SignatureRequest) -> SignatureRequestOut:
         )
         if art
         else None,
+        my_signing_available=any(
+            r.user_id == viewer_id and r.status == "pending" and bool(r.signing_url)
+            for r in _recipients(db, req.id)
+        )
+        and req.state == "sent",
         events=[
             SignatureEventOut(event_type=e.event_type, status=e.status, received_at=e.received_at)
             for e in events
@@ -718,11 +734,18 @@ def get_request(
     )
     if req is None:
         raise NotFoundError("Signature request not found.")
-    if not (p.is_admin or req.requested_by == p.user_id):
+    is_signer = bool(
+        db.scalar(
+            select(SignatureRecipient.id).where(
+                SignatureRecipient.request_id == req.id, SignatureRecipient.user_id == p.user_id
+            )
+        )
+    )
+    if not (p.is_admin or req.requested_by == p.user_id or is_signer):
         doc = authz.load_document(req.document_id, include_deleted=True)
         if doc is None or Action.VIEW.value not in authz.document_actions([doc])[doc.id]:
             raise NotFoundError("Signature request not found.")
-    return _out(db, req)
+    return _out(db, req, p.user_id)
 
 
 def list_for_document(
@@ -741,10 +764,93 @@ def list_for_document(
 
 
 def list_mine(
-    db: Session, p: Principal, *, scope_all: bool, limit: int, offset: int
+    db: Session, p: Principal, *, scope: str, limit: int, offset: int
 ) -> tuple[list[SignatureRequestOut], int]:
     stmt = select(SignatureRequest).where(SignatureRequest.organization_id == p.organization_id)
-    if not (scope_all and p.is_admin):
+    if scope == "to_sign":  # requests where I am a signer ("My signatures")
+        stmt = stmt.where(
+            SignatureRequest.id.in_(
+                select(SignatureRecipient.request_id).where(SignatureRecipient.user_id == p.user_id)
+            )
+        )
+    elif not (scope == "all" and p.is_admin):
         stmt = stmt.where(SignatureRequest.requested_by == p.user_id)
     reqs = list(db.scalars(stmt.order_by(SignatureRequest.created_at.desc())))
-    return [_out(db, r) for r in reqs[offset : offset + limit]], len(reqs)
+    return [_out(db, r, p.user_id) for r in reqs[offset : offset + limit]], len(reqs)
+
+
+def open_signing_session(db: Session, p: Principal, request_id: uuid.UUID) -> str:
+    """The signing page URL for the CURRENT user, if they are a pending internal signer.
+
+    The URL embeds the signer's secret token (document/documenso-guide.txt s.10): it is returned
+    only to that user, only while the request is open, and is never logged or audited."""
+    req = db.scalar(
+        select(SignatureRequest).where(
+            SignatureRequest.id == request_id, SignatureRequest.organization_id == p.organization_id
+        )
+    )
+    rec = (
+        db.scalar(
+            select(SignatureRecipient).where(
+                SignatureRecipient.request_id == request_id, SignatureRecipient.user_id == p.user_id
+            )
+        )
+        if req
+        else None
+    )
+    if req is None or rec is None:
+        raise NotFoundError("Signature request not found.")
+    if req.state != "sent":
+        raise ConflictError(f"The request is {req.state}.", code="invalid_state")
+    if rec.status != "pending":
+        raise ConflictError("You have already responded to this request.", code="already_responded")
+    if not rec.signing_url:
+        raise ConflictError(
+            "This request is signed through the link e-mailed to you.", code="no_signing_link"
+        )
+    audit.record(
+        db,
+        organization_id=p.organization_id,
+        actor_user_id=p.user_id,
+        action="signature.signing_opened",
+        resource_type="document",
+        resource_id=req.document_id,
+        metadata={"request_id": str(req.id)},
+    )
+    db.commit()
+    return rec.signing_url
+
+
+def refresh_request(
+    factory: sessionmaker[Session], db: Session, authz: AuthorizationService, request_id: uuid.UUID
+) -> SignatureRequestOut:
+    """Ask the provider for the authoritative status now (the guide's 'I have finished signing')."""
+    p = authz.principal
+    req = db.scalar(
+        select(SignatureRequest).where(
+            SignatureRequest.id == request_id, SignatureRequest.organization_id == p.organization_id
+        )
+    )
+    if req is None:
+        raise NotFoundError("Signature request not found.")
+    involved = (
+        p.is_admin
+        or req.requested_by == p.user_id
+        or db.scalar(
+            select(SignatureRecipient.id).where(
+                SignatureRecipient.request_id == req.id, SignatureRecipient.user_id == p.user_id
+            )
+        )
+    )
+    if not involved:
+        raise NotFoundError("Signature request not found.")
+    try:
+        reconcile(factory, request_id)
+    except SignatureProviderError as exc:
+        raise DependencyUnavailableError(
+            "The signature provider is unavailable. Try again shortly."
+        ) from exc
+    db.expire_all()
+    fresh = db.get(SignatureRequest, request_id)
+    assert fresh is not None
+    return _out(db, fresh, p.user_id)

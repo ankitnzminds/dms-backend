@@ -8,7 +8,7 @@ from typing import Any, Literal
 
 from pydantic import Field
 
-from app.schemas.common import ApiModel, BreadcrumbSegmentOut
+from app.schemas.common import ActionName, ApiModel, BreadcrumbSegmentOut, Classification
 
 
 class VersionOut(ApiModel):
@@ -36,7 +36,7 @@ class FolderOut(ApiModel):
     updated_at: datetime
     row_version: int
     deleted_at: datetime | None = None
-    permissions: list[str]
+    permissions: list[ActionName]
     breadcrumb: list[BreadcrumbSegmentOut] = Field(
         description="Path of ancestors, root first (excludes the folder itself)."
     )
@@ -48,7 +48,7 @@ class DocumentOut(ApiModel):
     folder_id: uuid.UUID
     owner_id: uuid.UUID | None
     status: Literal["processing", "available", "quarantined", "failed"]
-    classification: str
+    classification: Classification
     metadata: dict[str, Any]
     latest_version_number: int
     current_version: VersionOut | None
@@ -57,7 +57,7 @@ class DocumentOut(ApiModel):
     row_version: int
     deleted_at: datetime | None = None
     starred: bool = False
-    permissions: list[str]
+    permissions: list[ActionName]
     breadcrumb: list[BreadcrumbSegmentOut]
 
 
@@ -66,7 +66,7 @@ class TreeItem(ApiModel):
     id: uuid.UUID
     name: str
     updated_at: datetime
-    permissions: list[str]
+    permissions: list[ActionName]
     # document-only
     size_bytes: int | None = None
     content_type: str | None = None
@@ -92,7 +92,7 @@ class DocumentUpdate(ApiModel):
     name: str | None = Field(None, min_length=1, max_length=255)
     folder_id: uuid.UUID | None = Field(None, description="Move the document to this folder.")
     metadata: dict[str, Any] | None = None
-    classification: str | None = Field(None, max_length=50)
+    classification: Classification | None = None
     expected_row_version: int | None = None
 
 

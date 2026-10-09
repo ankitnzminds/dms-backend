@@ -56,8 +56,31 @@ class TestConfigSafety:
             malware_scanner="clamd",
             cors_allowed_origins="https://dms.example.com",
             download_signing_secret=SecretStr("x" * 40),
+            signature_provider="none",
         )
         assert s.is_production_like and s.cors_origins == ["https://dms.example.com"]
+
+    def test_production_rejects_fake_signature_provider_and_requires_webhook_secret(self):
+        base = dict(
+            app_env="production",
+            auth_provider="supabase",
+            storage_provider="supabase",
+            malware_scanner="clamd",
+            cors_allowed_origins="https://dms.example.com",
+            download_signing_secret=SecretStr("x" * 40),
+        )
+        with pytest.raises(ValueError, match="SIGNATURE_PROVIDER=fake"):
+            make_settings(
+                **base, signature_provider="fake", signature_webhook_secret=SecretStr("s")
+            )
+        with pytest.raises(ValueError, match="DOCUMENSO_WEBHOOK_SECRET"):
+            make_settings(
+                **base,
+                signature_provider="documenso",
+                documenso_url="https://sign.example.com",
+                documenso_api_key=SecretStr("k"),
+                documenso_webhook_secret=None,
+            )
 
     def test_development_allows_local(self):
         assert make_settings(app_env="development", auth_provider="local").auth_provider == "local"
@@ -194,3 +217,32 @@ class TestContentSniffing:
     def test_claimed_type_is_normalized(self, value):  # noqa: ANN001
         out = normalize_content_type(value)
         assert out == "application/octet-stream" or out == "a/b"
+
+
+class TestSignatureProviderSelection:
+    def test_auto_selects_documenso_only_when_url_and_key_are_set(self):
+        assert make_settings(signature_provider="auto").effective_signature_provider == "none"
+        s = make_settings(
+            signature_provider="auto",
+            documenso_url="https://sign.example.com",
+            documenso_api_key=SecretStr("k"),
+        )
+        assert s.effective_signature_provider == "documenso"
+        assert (
+            make_settings(
+                signature_provider="none",
+                documenso_url="https://x",
+                documenso_api_key=SecretStr("k"),
+            ).effective_signature_provider
+            == "none"
+        )
+
+    def test_guide_environment_variable_names_are_honoured(self, monkeypatch):  # noqa: ANN001
+        monkeypatch.setenv("DOCUMENSO_URL", "https://sign.example.com")
+        monkeypatch.setenv("DOCUMENSO_API_KEY", "api_x")
+        monkeypatch.setenv("DOCUMENSO_WEBHOOK_SECRET", "whsec")
+        s = Settings(_env_file=None)
+        assert s.documenso_url == "https://sign.example.com"
+        assert s.documenso_api_key.get_secret_value() == "api_x"
+        assert s.documenso_webhook_secret.get_secret_value() == "whsec"
+        assert "api_x" not in repr(s)
