@@ -192,3 +192,29 @@ class QuarantineItem(ApiModel):
     scanned_at: datetime | None
     uploaded_by: uuid.UUID | None
     size_bytes: int
+
+
+class TopAction(ApiModel):
+    action: str
+    count: int
+
+
+class SharesSummary(ApiModel):
+    total: int
+    revoked: int
+    expired: int
+    active: int
+
+
+class ReportSummaryOut(ApiModel):
+    period_days: int
+    documents_by_classification: dict[str, int]
+    documents_by_status: dict[str, int]
+    shares: SharesSummary
+    legal_holds: dict[str, int]
+    retention_policies_enabled: int
+    workflow_runs: dict[str, int]
+    signature_requests: dict[str, int]
+    audit_events_by_outcome: dict[str, int]
+    top_actions: list[TopAction]
+    denied_attempts: int

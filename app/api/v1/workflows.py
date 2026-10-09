@@ -142,12 +142,20 @@ def resubmit_run(
 def my_tasks(
     db: DbSession,
     principal: CurrentPrincipal,
-    status: Literal["pending", "approved", "rejected", "cancelled", "skipped"] | None = "pending",
+    status: Literal["pending", "approved", "rejected", "cancelled", "skipped", "all"]
+    | None = "pending",
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ) -> Page[TaskOut]:
-    items, total = wf.list_my_tasks(db, principal, status=status, limit=limit, offset=offset)
+    items, total = wf.list_my_tasks(
+        db, principal, status=None if status == "all" else status, limit=limit, offset=offset
+    )
     return Page[TaskOut](items=items, total=total, limit=limit, offset=offset)
+
+
+@router.get("/workflow-tasks/{task_id}", response_model=TaskOut, summary="One task I may see")
+def get_task(task_id: uuid.UUID, db: DbSession, authz: Authz) -> TaskOut:
+    return wf.get_task(db, authz, task_id)
 
 
 @router.post(

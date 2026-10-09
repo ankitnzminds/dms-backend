@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Any, Literal
+from typing import Literal
 
 from fastapi import APIRouter, Query, Response
 from fastapi.responses import StreamingResponse
@@ -28,6 +28,7 @@ from app.schemas.admin import (
     MemberOut,
     MemberUpdate,
     QuarantineItem,
+    ReportSummaryOut,
 )
 from app.schemas.common import Page
 
@@ -257,8 +258,12 @@ def export_audit(
     )
 
 
-@router.get("/reports/summary", summary="Activity and compliance summary from real records")
+@router.get(
+    "/reports/summary",
+    response_model=ReportSummaryOut,
+    summary="Activity and compliance summary from real records",
+)
 def report_summary(
     db: DbSession, principal: CurrentPrincipal, days: int = Query(30, ge=1, le=365)
-) -> dict[str, Any]:
-    return reports.activity_summary(db, principal, days)
+) -> ReportSummaryOut:
+    return ReportSummaryOut(**reports.activity_summary(db, principal, days))

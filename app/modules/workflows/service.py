@@ -881,6 +881,23 @@ def list_my_tasks(
     return _task_out(db, tasks[offset : offset + limit], with_context=True), len(tasks)
 
 
+def get_task(db: Session, authz: AuthorizationService, task_id: uuid.UUID) -> TaskOut:
+    p = authz.principal
+    task = db.scalar(
+        select(WorkflowTask).where(
+            WorkflowTask.id == task_id, WorkflowTask.organization_id == p.organization_id
+        )
+    )
+    run = db.get(WorkflowRun, task.run_id) if task else None
+    if (
+        task is None
+        or run is None
+        or not (task.assignee_id == p.user_id or _can_see_run(db, authz, run))
+    ):
+        raise NotFoundError("Task not found.")  # same answer for 'missing' and 'not yours'
+    return _task_out(db, [task], with_context=True)[0]
+
+
 def _can_see_run(db: Session, authz: AuthorizationService, run: WorkflowRun) -> bool:
     p = authz.principal
     if p.is_admin or run.started_by == p.user_id:

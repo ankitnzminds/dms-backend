@@ -10,7 +10,7 @@ from sqlalchemy import func, or_, select
 
 from app.adapters.identity.base import VerifiedIdentity
 from app.api.deps import CurrentPrincipal, DbSession, get_verified_identity, limited
-from app.core.errors import ForbiddenError, ValidationFailed
+from app.core.errors import ForbiddenError, NotFoundError, ValidationFailed
 from app.db.enums import UserStatus
 from app.db.models import Membership, Organization, User
 from app.modules.identity.service import find_or_bind_user
@@ -184,3 +184,24 @@ def lookup_members(
         .limit(10)
     ).all()
     return [UserRef(id=i, display_name=n, email=e) for i, n, e in rows]
+
+
+@router.get(
+    "/members/{user_id}",
+    response_model=UserRef,
+    summary="Name/e-mail of one active member of your organization (to label IDs)",
+    dependencies=[limited("member_lookup")],
+)
+def get_member(user_id: uuid.UUID, db: DbSession, principal: CurrentPrincipal) -> UserRef:
+    row = db.execute(
+        select(User.id, User.display_name, User.email)
+        .join(Membership, Membership.user_id == User.id)
+        .where(
+            User.id == user_id,
+            Membership.organization_id == principal.organization_id,
+            Membership.status == "active",
+        )
+    ).first()
+    if row is None:
+        raise NotFoundError("Member not found.")
+    return UserRef(id=row[0], display_name=row[1], email=row[2])
