@@ -12,11 +12,13 @@ from app.db.models.identity import Group, GroupMembership, Membership, Organizat
 from app.db.models.platform import (
     AuditEvent,
     DocumentStar,
+    FolderFavorite,
     Notification,
     NotificationPreference,
     OutboxEvent,
     ProcessedEvent,
     RecentDocument,
+    UserPreference,
 )
 from app.db.models.processing import DocumentDerivative, DocumentText, MetadataDefinition
 from app.db.models.signatures import (
@@ -57,6 +59,7 @@ __all__ = [
     "DocumentStar",
     "DocumentVersion",
     "Folder",
+    "FolderFavorite",
     "Group",
     "LegalHold",
     "LegalHoldItem",
@@ -76,4 +79,5 @@ __all__ = [
     "StorageLocation",
     "UploadSession",
     "User",
+    "UserPreference",
 ]

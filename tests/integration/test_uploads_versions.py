@@ -626,3 +626,70 @@ def test_unconfigured_scanner_leaves_files_unavailable(env):  # noqa: ANN001
         admin.post(f"/api/v1/documents/{doc['document_id']}/download-url", json={}).status_code
         == 409
     )
+
+
+class TestConcurrentUploadsDoNotDeadlock:
+    """Regression for a deadlock found by scripts/load_test.py: many concurrent uploads in one
+    organization used to fail with HTTP 500 (FOR KEY SHARE -> FOR UPDATE lock upgrade on the
+    organization row)."""
+
+    def test_parallel_upload_cycles_all_succeed(self, world):  # noqa: ANN001
+        from starlette.testclient import TestClient
+
+        admin = world.org("Parallel", quota_bytes=50_000_000)
+        folder = world.mkdir(admin, world.root_id(admin), "bulk")
+        results: list[tuple[str, int, str]] = []
+        lock = threading.Lock()
+
+        def worker(n: int) -> None:
+            with TestClient(world.client.app, raise_server_exceptions=False) as client:
+                h = admin.headers
+                for i in range(5):
+                    data = b"%PDF-1.4 parallel " + f"{n}-{i}".encode() * 40
+                    steps: list[tuple[str, int, str]] = []
+                    s = client.post(
+                        f"/api/v1/folders/{folder}/uploads",
+                        json={"filename": f"p{n}-{i}.pdf", "size_bytes": len(data)},
+                        headers=h,
+                    )
+                    steps.append(
+                        (
+                            "init",
+                            s.status_code,
+                            "" if s.status_code == 201 else s.json()["error"]["code"],
+                        )
+                    )
+                    if s.status_code == 201:
+                        sess = s.json()
+                        put = client.put(
+                            sess["upload_url"],
+                            content=data,
+                            headers={**h, "Content-Type": "application/octet-stream"},
+                        )
+                        steps.append(
+                            (
+                                "put",
+                                put.status_code,
+                                "" if put.status_code == 200 else put.json()["error"]["code"],
+                            )
+                        )
+                        fin = client.post(f"/api/v1/uploads/{sess['id']}/finalize", headers=h)
+                        steps.append(
+                            (
+                                "finalize",
+                                fin.status_code,
+                                "" if fin.status_code == 200 else fin.json()["error"]["code"],
+                            )
+                        )
+                    with lock:
+                        results.extend(steps)
+
+        threads = [threading.Thread(target=worker, args=(n,)) for n in range(8)]
+        [t.start() for t in threads]
+        [t.join() for t in threads]
+        bad = [r for r in results if r[1] not in (200, 201)]
+        assert not bad, bad[:5]
+        assert len(results) == 8 * 5 * 3
+        assert (
+            admin.get("/api/v1/organization/usage").json()["reserved_bytes"] == 0
+        )  # no leaked reservations

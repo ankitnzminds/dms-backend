@@ -22,10 +22,18 @@ from app.db.models import DocumentVersion, Organization, QuotaLedgerEntry, Uploa
 
 
 def _lock_org(db: Session, organization_id: uuid.UUID) -> Organization:
+    """Serialize quota changes per organization.
+
+    FOR NO KEY UPDATE (not FOR UPDATE): rows that reference the organization (upload sessions,
+    documents, versions) take a FOR KEY SHARE lock through their foreign key. A plain FOR UPDATE
+    taken after such an insert in the same transaction deadlocks with a concurrent request doing
+    the same (found by scripts/load_test.py). NO KEY UPDATE still serializes quota writers but
+    does not conflict with key-share locks.
+    """
     org = db.scalar(
         select(Organization)
         .where(Organization.id == organization_id)
-        .with_for_update()
+        .with_for_update(key_share=True)
         .execution_options(populate_existing=True)
     )
     if org is None:

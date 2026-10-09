@@ -20,7 +20,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-DEV_DIR = ROOT / ".dev"
+DEV_DIR = ROOT / os.environ.get("DEV_STACK_DIR", ".dev")
+PORT = os.environ.get("DEV_STACK_PORT", "8000")
 
 
 def main() -> int:
@@ -43,7 +44,10 @@ def main() -> int:
             "DOWNLOAD_SIGNING_SECRET", "dev-only-download-secret-0123456789abcdef"
         ),
         "CORS_ALLOWED_ORIGINS": os.environ.get("CORS_ALLOWED_ORIGINS", "http://localhost:3000"),
-        "PUBLIC_API_BASE_URL": os.environ.get("PUBLIC_API_BASE_URL", "http://localhost:8000"),
+        "PUBLIC_API_BASE_URL": os.environ.get("PUBLIC_API_BASE_URL", f"http://localhost:{PORT}"),
+        "FRAME_ANCESTORS": os.environ.get(
+            "FRAME_ANCESTORS", "http://localhost:3000,http://localhost:3100"
+        ),
         "PYTHONUTF8": "1",
     }
     os.environ.update(env)
@@ -58,7 +62,7 @@ def main() -> int:
         print(f"dev organization ready: {org.name}")
 
     procs = [
-        subprocess.Popen(
+        subprocess.Popen(  # noqa: S603
             [
                 sys.executable,
                 "-m",
@@ -67,14 +71,14 @@ def main() -> int:
                 "--host",
                 "127.0.0.1",
                 "--port",
-                "8000",
+                PORT,
             ],
             cwd=ROOT,
             env=env,
         ),
         subprocess.Popen([sys.executable, "-m", "app.cli", "worker"], cwd=ROOT, env=env),
     ]
-    print("API: http://localhost:8000  (docs: /docs)   worker running. Ctrl+C to stop.")
+    print(f"API: http://localhost:{PORT}  (docs: /docs)   worker running. Ctrl+C to stop.")
     try:
         for p in procs:
             p.wait()

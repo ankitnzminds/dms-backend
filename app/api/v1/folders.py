@@ -55,7 +55,7 @@ def list_children(
     authz: Authz,
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
-    sort: Literal["name", "updated_at", "size"] = "name",
+    sort: Literal["name", "updated_at", "size", "type", "modified_by"] = "name",
     order: Literal["asc", "desc"] = "asc",
     kind: Literal["folder", "document"] | None = None,
 ) -> Page[TreeItem]:

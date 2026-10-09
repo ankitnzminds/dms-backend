@@ -185,3 +185,45 @@ class NotificationPreference(Base):
     group: Mapped[str] = mapped_column(String(24), primary_key=True)
     in_app: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     email: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+
+
+class FolderFavorite(Base):
+    """Quick Access: folders a user pinned (documents use document_stars)."""
+
+    __tablename__ = "folder_favorites"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("dms.users.id", ondelete="CASCADE"), primary_key=True
+    )
+    folder_id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    organization_id: Mapped[uuid.UUID] = mapped_column()
+    created_at: Mapped[datetime] = created_at_col()
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["folder_id", "organization_id"],
+            ["dms.folders.id", "dms.folders.organization_id"],
+            ondelete="CASCADE",
+            name="fk_folder_favorites_folder_org",
+        ),
+    )
+
+
+class UserPreference(Base):
+    """Small per-user JSON preferences (e.g. file-manager view/sort/columns per location)."""
+
+    __tablename__ = "user_preferences"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("dms.users.id", ondelete="CASCADE"), primary_key=True
+    )
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("dms.organizations.id", ondelete="CASCADE"), primary_key=True
+    )
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()")
+    )
+
+    __table_args__ = (CheckConstraint("key ~ '^[a-z][a-z0-9_.-]{0,63}$'", name="key_format"),)

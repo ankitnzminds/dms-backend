@@ -230,7 +230,7 @@ def _delete_document_rows(db: Session, doc: Document) -> list[dict[str, str]]:
         org = db.scalar(
             select(Organization)
             .where(Organization.id == org_id)
-            .with_for_update()
+            .with_for_update(key_share=True)
             .execution_options(populate_existing=True)
         )
         assert org is not None

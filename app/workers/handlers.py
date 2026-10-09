@@ -131,6 +131,7 @@ def _apply_scan_result(
         # Promote only forward: a slow scan of v2 must never replace an already-released v3.
         if current is None or version.version_number > current.version_number:
             doc.current_version_id = version.id
+            doc.updated_by = version.created_by or doc.updated_by
         doc.status = DocumentStatus.AVAILABLE.value
         doc.row_version += 1
         audit.record(

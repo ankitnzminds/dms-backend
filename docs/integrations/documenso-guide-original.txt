@@ -1,0 +1,276 @@
+DOCUMENSO - COMPLETE GUIDE (Docker setup + using it from another service)
+==========================================================================
+
+Note: environment variable names and API paths below are written from the
+Documenso docs as remembered and from this DMS's own code
+(server/src/services/documensoService.js). Before going to production,
+compare them once with the official docs of the Documenso version you run
+(https://docs.documenso.com) and with your instance's own API spec:
+   GET <DOCUMENSO_URL>/api/v1/openapi.json
+
+
+1. WHAT IS DOCUMENSO
+--------------------
+Documenso is an open-source e-signature application (like DocuSign).
+You upload a PDF, add recipients (signers) and signature fields, and each
+signer signs it in the browser. Documenso then seals the PDF with a digital
+certificate and keeps a signing certificate / audit log.
+
+It can be used in two ways:
+  a) As a normal web app: people log in to Documenso and send documents.
+  b) As a signing service for another application (what this DMS does):
+     your app calls the Documenso REST API, shows the signing page to the
+     signer (iframe or new tab), and learns the result through a webhook.
+
+
+2. HOW THIS DMS USES DOCUMENSO
+------------------------------
+Where in the product: open a document -> "E-signature" panel -> choose
+"Documenso" (or "Built-in") -> pick a signer -> Request.
+
+Flow (code: server/src/services/documensoService.js,
+server/src/controllers/signatureController.js):
+  1. DMS converts the document to PDF if needed (Word/Excel/image/text).
+  2. DMS calls Documenso:  POST /api/v1/documents  (title + signer
+     name/email). Response gives documentId, recipientId, signing URL and an
+     upload URL.
+  3. DMS PUTs the PDF bytes to the upload URL.
+  4. DMS adds a signature field at the chosen page/position
+     (POST .../fields).
+  5. DMS sends the document (sendEmail:false, so Documenso does not email
+     the signer; the DMS shows the form itself).
+  6. The signer opens "My Signatures" in the DMS -> "Sign with Documenso".
+     The DMS shows Documenso's signing page (/sign/<token>) in a full-screen
+     iframe.
+  7. After signing, Documenso calls the DMS webhook
+     (POST /api/public/documenso-webhook) and the DMS marks the request
+     signed. "I've finished signing" in the popup only refreshes this.
+
+DMS settings (server/.env):
+     DOCUMENSO_URL=https://your-documenso-domain
+     DOCUMENSO_API_KEY=<API token created in Documenso>
+     DOCUMENSO_WEBHOOK_SECRET=<random secret, same as set in Documenso>
+
+If DOCUMENSO_URL / DOCUMENSO_API_KEY are not set, the DMS refuses the
+"Documenso" provider with an error and the "Built-in" provider (type your
+name + tick "I agree") still works.
+
+
+3. WHAT YOU NEED TO RUN DOCUMENSO
+---------------------------------
+  - Docker (and Docker Compose)
+  - A PostgreSQL database (Documenso uses Prisma/Postgres)
+  - A public HTTPS URL, for example https://sign.example.com
+  - SMTP account (to email signers; optional if your app shows the signing
+    page itself, but recommended)
+  - A signing certificate (.p12 file) to seal the PDFs
+
+
+4. DOCKER IMAGE
+---------------
+Official image:
+    documenso/documenso            (Docker Hub)
+    ghcr.io/documenso/documenso    (GitHub Container Registry)
+Use a pinned version tag in production instead of "latest", e.g.
+    documenso/documenso:v1.x.y
+The app listens on port 3000 inside the container.
+
+
+5. SIGNING CERTIFICATE
+----------------------
+Documenso needs a PKCS#12 (.p12) certificate to digitally sign the finished
+PDFs.
+
+Test certificate (self-signed, PDF readers will say "not trusted"):
+    openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 365 -nodes
+    openssl pkcs12 -export -out cert.p12 -inkey key.pem -in cert.pem
+(you will be asked to set an export password - that is the passphrase)
+
+Production: buy/obtain a certificate from a trusted CA (e.g. an Adobe
+Approved Trust List provider) so Adobe Reader shows the signature as valid.
+
+KEEP A BACKUP of cert.p12 and its passphrase. If it is lost, documents
+signed with it can no longer be shown as signed by that identity.
+
+
+6. docker-compose.yml  (example)
+--------------------------------
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: documenso
+      POSTGRES_PASSWORD: change-me
+      POSTGRES_DB: documenso
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+
+  documenso:
+    image: documenso/documenso:latest
+    restart: unless-stopped
+    depends_on:
+      - db
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+
+      # secrets - generate each with:  openssl rand -hex 32
+      NEXTAUTH_SECRET: "<random>"
+      NEXT_PRIVATE_ENCRYPTION_KEY: "<random>"
+      NEXT_PRIVATE_ENCRYPTION_SECONDARY_KEY: "<random>"
+
+      # URLs
+      NEXT_PUBLIC_WEBAPP_URL: "https://sign.example.com"
+      NEXT_PRIVATE_INTERNAL_WEBAPP_URL: "http://localhost:3000"
+
+      # database
+      NEXT_PRIVATE_DATABASE_URL: "postgres://documenso:change-me@db:5432/documenso"
+      NEXT_PRIVATE_DIRECT_DATABASE_URL: "postgres://documenso:change-me@db:5432/documenso"
+
+      # email
+      NEXT_PRIVATE_SMTP_TRANSPORT: "smtp-auth"
+      NEXT_PRIVATE_SMTP_HOST: "smtp.example.com"
+      NEXT_PRIVATE_SMTP_PORT: "587"
+      NEXT_PRIVATE_SMTP_USERNAME: "<smtp user>"
+      NEXT_PRIVATE_SMTP_PASSWORD: "<smtp password>"
+      NEXT_PRIVATE_SMTP_FROM_NAME: "Your Company"
+      NEXT_PRIVATE_SMTP_FROM_ADDRESS: "sign@example.com"
+
+      # signing certificate
+      NEXT_PRIVATE_SIGNING_LOCAL_FILE_PATH: "/opt/documenso/cert.p12"
+      NEXT_PRIVATE_SIGNING_PASSPHRASE: "<cert passphrase>"
+
+      # optional: stop anyone from creating accounts after you made yours
+      # NEXT_PUBLIC_DISABLE_SIGNUP: "true"
+    volumes:
+      - ./cert.p12:/opt/documenso/cert.p12:ro
+
+volumes:
+  dbdata:
+
+Start:   docker compose up -d
+Logs:    docker compose logs -f documenso
+Database migrations run automatically when the container starts.
+
+
+7. FIRST-TIME SETUP
+-------------------
+  1. Put a reverse proxy with HTTPS in front (nginx, Caddy, Traefik, or a
+     platform like Render which gives HTTPS for free).
+  2. Open https://sign.example.com and create the first account (this is
+     your admin).
+  3. Turn off public sign-up (NEXT_PUBLIC_DISABLE_SIGNUP=true), restart.
+  4. Settings -> API Tokens -> create a token. Copy it once; it is shown
+     only once. This is DOCUMENSO_API_KEY.
+  5. Settings -> Webhooks -> add the webhook (see section 9).
+
+
+8. USING DOCUMENSO FROM ANOTHER SERVICE (REST API)
+--------------------------------------------------
+Base URL:  <DOCUMENSO_URL>/api/v1
+Auth:      send the API token in the Authorization header, exactly as it was
+           generated (this DMS sends it as-is, without "Bearer").
+Spec:      GET <DOCUMENSO_URL>/api/v1/openapi.json  (public)
+
+Typical sequence for one signer:
+  1. Create the document
+        POST /api/v1/documents
+        body (JSON): { "title": "Contract v1.pdf",
+                       "recipients": [ { "name": "Xavier",
+                                         "email": "xavier@example.com",
+                                         "role": "SIGNER" } ],
+                       "meta": { ... optional ... } }
+        response: { documentId, uploadUrl, recipients: [ { recipientId,
+                    token, signingUrl, ... } ] }
+  2. Upload the PDF
+        PUT <uploadUrl>   body: raw PDF bytes   (Content-Type: application/pdf)
+  3. Add the signature field(s)
+        POST /api/v1/documents/{documentId}/fields
+        body: { recipientId, type: "SIGNATURE", pageNumber, pageX, pageY,
+                pageWidth, pageHeight }     (x/y/size are % of the page)
+        Without at least one field the API refuses to send the document.
+  4. Send it
+        POST /api/v1/documents/{documentId}/send
+        body: { "sendEmail": false }   (true = Documenso emails the signer)
+  5. Show the signing page to the signer
+        <DOCUMENSO_URL>/sign/<token>        (the "signingUrl" from step 1)
+        Embed it in an <iframe> in your app, or open it in a new tab, or
+        send the link by email.
+  6. Learn the result: webhook (section 9) or poll
+        GET /api/v1/documents/{documentId}
+  7. Download the signed PDF
+        GET /api/v1/documents/{documentId}/download   (see the OpenAPI spec
+        for the exact name in your version)
+
+Several signers: add several recipients; use signingOrder if they must sign
+one after another.
+
+
+9. WEBHOOKS (TELL YOUR APP WHEN SOMEONE SIGNED)
+-----------------------------------------------
+In Documenso: Settings -> Webhooks -> Create.
+  Webhook URL : https://your-app/api/public/documenso-webhook
+                (for this DMS; must be reachable from the internet, so not
+                 localhost)
+  Secret      : same value as DOCUMENSO_WEBHOOK_SECRET in the app
+  Events      : at least DOCUMENT_SIGNED and DOCUMENT_COMPLETED
+                (also DOCUMENT_REJECTED / DOCUMENT_CANCELLED if you want)
+Your app must check the secret on every call and ignore calls without it.
+
+
+10. EMBEDDING THE SIGNING PAGE
+------------------------------
+  - Your app and Documenso should both be on HTTPS.
+  - If the iframe is blank, check the response headers of Documenso
+    (X-Frame-Options / Content-Security-Policy frame-ancestors) and the
+    reverse proxy; they must allow your app's domain.
+  - The Documenso page scrolls as one long page. Make the iframe fill the
+    whole screen (this DMS shows it full screen) so the form is easy to use.
+  - The signer needs no Documenso account; the /sign/<token> link is enough.
+    Treat the link like a password: do not log or share it.
+
+
+11. SECURITY CHECKLIST
+----------------------
+  - Strong random values for NEXTAUTH_SECRET and both encryption keys; do not
+    change them later (they encrypt data already stored).
+  - Close public sign-up after creating your admin account.
+  - Keep the API token only on the server (never in browser code).
+  - Always use HTTPS. Restrict the database to the private network.
+  - Back up: the Postgres database and cert.p12 (+ passphrase).
+  - Pin the image version and update on purpose, reading release notes first.
+
+
+12. RUNNING ON RENDER (what this project's hosted copy does)
+------------------------------------------------------------
+  - New "Web Service" -> Docker image -> documenso/documenso:<tag>
+  - Add a Render Postgres; use its internal URL for
+    NEXT_PRIVATE_DATABASE_URL and NEXT_PRIVATE_DIRECT_DATABASE_URL.
+  - Add all environment variables from section 6.
+  - Provide the .p12: store it as a Secret File in Render and point
+    NEXT_PRIVATE_SIGNING_LOCAL_FILE_PATH to its path.
+  - NEXT_PUBLIC_WEBAPP_URL must be the final public https URL.
+  - Free instances sleep when idle, so the first request after a pause can
+    take 30-60 seconds; use a paid instance for production.
+
+
+13. TROUBLESHOOTING
+-------------------
+  "Documenso is not configured"  -> DOCUMENSO_URL / DOCUMENSO_API_KEY missing
+                                    in the app's environment.
+  401 / 403 from the API         -> wrong or revoked API token; token must be
+                                    sent in the Authorization header.
+  Document will not send         -> no signature field was added (step 3).
+  Signed in Documenso but the app still shows pending
+                                 -> webhook not reachable / wrong secret /
+                                    event not enabled; check Documenso's
+                                    webhook delivery log and the app logs.
+  Blank iframe                   -> frame-ancestors / X-Frame-Options, or
+                                    http/https mixed content.
+  Signature shows "not trusted" in Adobe
+                                 -> using a self-signed certificate; use a
+                                    certificate from a trusted CA.
+  Emails not arriving            -> check the SMTP variables and
+                                    "docker compose logs documenso".

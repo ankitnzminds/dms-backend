@@ -57,7 +57,9 @@ def main() -> int:
     print(f"provider selected: {settings.effective_signature_provider}")
     provider = get_signature_provider()
     if provider is None or provider.name != "documenso":
-        print("Documenso is not configured (DOCUMENSO_URL / DOCUMENSO_API_KEY / DOCUMENSO_WEBHOOK_SECRET).")
+        print(
+            "Documenso is not configured (DOCUMENSO_URL / DOCUMENSO_API_KEY / DOCUMENSO_WEBHOOK_SECRET)."
+        )
         return 2
     print(f"instance: {urlparse(settings.documenso_url).netloc}")
     pdf = make_pdf()
@@ -74,14 +76,20 @@ def main() -> int:
         )
         print(f"create+upload+field+send: OK (document id {created.provider_request_id})")
         link = next(iter(created.signing_urls.values()), "")
-        print(f"signing link returned: {'yes' if link else 'NO'} (host {urlparse(link).netloc or '-'}, path /sign/<token>: {urlparse(link).path.startswith('/sign/')})")
+        print(
+            f"signing link returned: {'yes' if link else 'NO'} (host {urlparse(link).netloc or '-'}, path /sign/<token>: {urlparse(link).path.startswith('/sign/')})"
+        )
         state = provider.get_state(created.provider_request_id)
-        print(f"status: {state.status}; recipients: {[(r.email, r.status) for r in state.recipients]}")
+        print(
+            f"status: {state.status}; recipients: {[(r.email, r.status) for r in state.recipients]}"
+        )
         if keep:
             import json
 
             Path(".dev").mkdir(exist_ok=True)
-            Path(".dev/smoke.json").write_text(json.dumps({"id": created.provider_request_id, "link": link}))
+            Path(".dev/smoke.json").write_text(
+                json.dumps({"id": created.provider_request_id, "link": link})
+            )
             print("kept for browser signing (link stored in .dev/smoke.json, not printed)")
             created = None
         return 0

@@ -13,10 +13,11 @@ from sqlalchemy.orm import Session
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError, ValidationFailed
 from app.core.naming import validate_name
 from app.db.enums import Action
-from app.db.models import Document, DocumentStar, DocumentVersion, Folder
+from app.db.models import Document, DocumentVersion, Folder
 from app.modules.audit import service as audit
 from app.modules.authorization.service import AuthorizationService, BreadcrumbSegment
 from app.modules.folders.common import ensure_name_free, plain_path, subtree_folder_ids
+from app.modules.items.common import document_stars, folder_favorites, lock_active, user_refs
 from app.modules.organizations.service import get_org, org_settings
 from app.schemas.common import BreadcrumbSegmentOut
 from app.schemas.tree import FolderOut, TrashItem, TreeItem
@@ -44,6 +45,7 @@ def folder_out(
         breadcrumb = authz.breadcrumb_for_folder(
             folder.parent_folder_id, mask_unauthorized=mask_policy(db, authz)
         )
+    refs = user_refs(db, [folder.updated_by])
     return FolderOut(
         id=folder.id,
         name=folder.name,
@@ -55,6 +57,8 @@ def folder_out(
         updated_at=folder.updated_at,
         row_version=folder.row_version,
         deleted_at=folder.deleted_at,
+        updated_by=refs.get(folder.updated_by) if folder.updated_by else None,
+        is_favorite=bool(folder_favorites(db, authz.principal.user_id, [folder.id])),
         permissions=sorted(permissions),
         breadcrumb=to_breadcrumb_out(breadcrumb),
     )
@@ -140,16 +144,11 @@ def list_children(
         if version_ids
         else {}
     )
-    starred: set[uuid.UUID] = set()
-    if visible_docs:
-        starred = set(
-            db.scalars(
-                select(DocumentStar.document_id).where(
-                    DocumentStar.user_id == authz.principal.user_id,
-                    DocumentStar.document_id.in_([d.id for d in visible_docs]),
-                )
-            )
-        )
+    starred = document_stars(db, authz.principal.user_id, [d.id for d in visible_docs])
+    pinned = folder_favorites(db, authz.principal.user_id, [f.id for f in visible_folders])
+    refs = user_refs(
+        db, [*(f.updated_by for f in visible_folders), *(d.updated_by for d in visible_docs)]
+    )
 
     items: list[TreeItem] = []
     for f in visible_folders:
@@ -161,6 +160,8 @@ def list_children(
                 updated_at=f.updated_at,
                 permissions=sorted(folder_perms[f.id]),
                 is_team_folder=f.is_team_folder,
+                starred=f.id in pinned,
+                updated_by=refs.get(f.updated_by) if f.updated_by else None,
             )
         )
     for d in visible_docs:
@@ -178,6 +179,9 @@ def list_children(
                 current_version_number=v.version_number if v else None,
                 owner_id=d.owner_id,
                 starred=d.id in starred,
+                updated_by=refs.get(d.updated_by) if d.updated_by else None,
+                locked=lock_active(d),
+                locked_by_me=lock_active(d) and d.locked_by == authz.principal.user_id,
             )
         )
 
@@ -185,9 +189,13 @@ def list_children(
         "name": lambda i: i.name.lower(),
         "updated_at": lambda i: i.updated_at,
         "size": lambda i: i.size_bytes or 0,
+        "type": lambda i: (i.content_type or "", i.name.lower()),
+        "modified_by": lambda i: (
+            (i.updated_by.display_name or i.updated_by.email or "").lower() if i.updated_by else ""
+        ),
     }
     if sort not in key_funcs:
-        raise ValidationFailed("sort must be one of: name, updated_at, size.")
+        raise ValidationFailed("sort must be one of: name, updated_at, size, type, modified_by.")
     items.sort(key=key_funcs[sort], reverse=descending)
     items.sort(key=lambda i: 0 if i.kind == "folder" else 1)  # folders first (stable)
     return items[offset : offset + limit], len(items)
@@ -214,6 +222,7 @@ def create_folder(
         parent_folder_id=parent.id,
         name=name,
         created_by=p.user_id,
+        updated_by=p.user_id,
     )
     db.add(folder)
     try:
@@ -277,6 +286,7 @@ def update_folder(
         folder.parent_folder_id = new_parent
         folder.row_version += 1
         folder.updated_at = datetime.now(UTC)
+        folder.updated_by = p.user_id
         try:
             db.flush()
         except IntegrityError as exc:

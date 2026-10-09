@@ -8,7 +8,7 @@ from typing import Any, Literal
 
 from pydantic import Field
 
-from app.schemas.common import ActionName, ApiModel, BreadcrumbSegmentOut, Classification
+from app.schemas.common import ActionName, ApiModel, BreadcrumbSegmentOut, Classification, UserRef
 
 
 class VersionOut(ApiModel):
@@ -25,6 +25,13 @@ class VersionOut(ApiModel):
     restored_from_version_number: int | None = None
 
 
+class LockOut(ApiModel):
+    locked_by: UserRef
+    locked_at: datetime
+    expires_at: datetime | None
+    is_mine: bool
+
+
 class FolderOut(ApiModel):
     id: uuid.UUID
     name: str
@@ -36,6 +43,8 @@ class FolderOut(ApiModel):
     updated_at: datetime
     row_version: int
     deleted_at: datetime | None = None
+    updated_by: UserRef | None = None
+    is_favorite: bool = False
     permissions: list[ActionName]
     breadcrumb: list[BreadcrumbSegmentOut] = Field(
         description="Path of ancestors, root first (excludes the folder itself)."
@@ -57,6 +66,8 @@ class DocumentOut(ApiModel):
     row_version: int
     deleted_at: datetime | None = None
     starred: bool = False
+    updated_by: UserRef | None = None
+    lock: LockOut | None = None
     permissions: list[ActionName]
     breadcrumb: list[BreadcrumbSegmentOut]
 
@@ -73,8 +84,11 @@ class TreeItem(ApiModel):
     status: str | None = None
     current_version_number: int | None = None
     owner_id: uuid.UUID | None = None
-    starred: bool = False
+    starred: bool = False  # documents: starred; folders: pinned to Quick Access
     is_team_folder: bool = False
+    updated_by: UserRef | None = None  # "Modified by"
+    locked: bool = False
+    locked_by_me: bool = False
 
 
 class FolderCreate(ApiModel):

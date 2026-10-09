@@ -172,6 +172,9 @@ def initiate(
 
     if document_id is not None:
         doc = authz.require_document(document_id, Action.UPLOAD_VERSION)
+        from app.modules.documents.locks import assert_unlocked_for
+
+        assert_unlocked_for(db, doc, p)
         if expected_latest_version is None:
             raise ValidationFailed(
                 "expected_latest_version is required when uploading a new version."
@@ -432,6 +435,7 @@ def finalize(
                 )
             doc.latest_version_number += 1
             doc.row_version += 1
+            doc.updated_by = p.user_id
             version_number = doc.latest_version_number
             action = "document.version_created"
         else:
@@ -442,6 +446,7 @@ def finalize(
                 folder_id=session.folder_id,
                 name=session.filename,
                 owner_id=p.user_id,
+                updated_by=p.user_id,
                 status=DocumentStatus.PROCESSING.value,
                 latest_version_number=1,
             )

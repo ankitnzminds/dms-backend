@@ -32,8 +32,10 @@ from app.db.models import (
 )
 from app.modules.audit import service as audit
 from app.modules.authorization.service import AuthorizationService
+from app.modules.documents.locks import assert_unlocked_for
 from app.modules.folders.common import ensure_name_free, plain_path
 from app.modules.folders.service import mask_policy, to_breadcrumb_out
+from app.modules.items.common import lock_active, lock_out, user_refs
 from app.modules.outbox import service as outbox
 from app.modules.quota import service as quota
 from app.schemas.tree import DocumentOut, TreeItem, VersionOut
@@ -99,6 +101,7 @@ def _document_out(
         is not None
     )
     crumbs = authz.breadcrumb_for_folder(doc.folder_id, mask_unauthorized=mask_policy(db, authz))
+    refs = user_refs(db, [doc.updated_by, doc.locked_by])
     return DocumentOut(
         id=doc.id,
         name=doc.name,
@@ -114,6 +117,8 @@ def _document_out(
         row_version=doc.row_version,
         deleted_at=doc.deleted_at,
         starred=starred,
+        updated_by=refs.get(doc.updated_by) if doc.updated_by else None,
+        lock=lock_out(doc, p.user_id, refs),
         permissions=sorted(permissions),
         breadcrumb=to_breadcrumb_out(crumbs),
     )
@@ -149,6 +154,7 @@ def update_document(
 ) -> DocumentOut:
     p = authz.principal
     doc = authz.require_document(document_id, Action.VIEW)
+    assert_unlocked_for(db, doc, p)
     if name is None and folder_id is None and metadata is None and classification is None:
         raise ValidationFailed("Nothing to update.")
     if expected_row_version is not None and expected_row_version != doc.row_version:
@@ -180,6 +186,7 @@ def update_document(
         doc.name, doc.folder_id = new_name, new_folder
     doc.row_version += 1
     doc.updated_at = datetime.now(UTC)
+    doc.updated_by = p.user_id
     try:
         db.flush()
     except IntegrityError as exc:
@@ -212,6 +219,7 @@ def update_document(
 def delete_document(db: Session, authz: AuthorizationService, document_id: uuid.UUID) -> None:
     p = authz.principal
     doc = authz.require_document(document_id, Action.DELETE)
+    assert_unlocked_for(db, doc, p)
     from app.modules.governance.service import assert_deletable
 
     assert_deletable(db, p.organization_id, documents=[doc], folders=[])
@@ -391,6 +399,7 @@ def restore_version(
     """Restore = create a *new* version with the old content. History is never rewritten."""
     p = authz.principal
     doc = authz.require_document(document_id, Action.UPLOAD_VERSION)
+    assert_unlocked_for(db, doc, p)
     source = db.scalar(
         select(DocumentVersion).where(
             DocumentVersion.document_id == doc.id,
@@ -551,6 +560,7 @@ def _tree_items_for(
             )
         )
     )
+    refs = user_refs(db, [d.updated_by for d in docs])
     items = []
     for d in docs:
         if Action.DISCOVER.value not in perms.get(d.id, ()):
@@ -569,6 +579,9 @@ def _tree_items_for(
                 current_version_number=v.version_number if v else None,
                 owner_id=d.owner_id,
                 starred=d.id in starred,
+                updated_by=refs.get(d.updated_by) if d.updated_by else None,
+                locked=lock_active(d),
+                locked_by_me=lock_active(d) and d.locked_by == authz.principal.user_id,
             )
         )
     return items

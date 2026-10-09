@@ -77,6 +77,9 @@ class Folder(Base):
         ForeignKey("dms.users.id", ondelete="SET NULL")
     )
     is_team_folder: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("dms.users.id", ondelete="SET NULL")
+    )
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     deleted_by: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("dms.users.id", ondelete="SET NULL")
@@ -136,6 +139,15 @@ class Document(Base):
         ForeignKey("dms.users.id", ondelete="SET NULL")
     )
     current_version_id: Mapped[uuid.UUID | None] = mapped_column()
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("dms.users.id", ondelete="SET NULL")
+    )
+    # Cooperative check-out: while locked, only the holder may change or version the document.
+    locked_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("dms.users.id", ondelete="SET NULL")
+    )
+    locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    lock_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     latest_version_number: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     status: Mapped[str] = mapped_column(String(32), default=DocumentStatus.PROCESSING.value)
     classification: Mapped[str] = mapped_column(
