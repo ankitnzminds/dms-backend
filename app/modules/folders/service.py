@@ -6,7 +6,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -530,3 +530,46 @@ __all__ = [
     "restore_folder",
     "update_folder",
 ]
+
+
+MAX_PATH_DEPTH = 20
+
+
+def ensure_path(
+    db: Session, authz: AuthorizationService, base_id: uuid.UUID, segments: list[str]
+) -> tuple[FolderOut, int]:
+    """Resolve ``segments`` below ``base_id``, creating missing folders (folder upload / drop).
+
+    Idempotent. An existing folder must be visible to the caller (otherwise this would be an
+    existence oracle, so it is reported as a name conflict); a document with the same name is a
+    conflict. Missing folders need CREATE_CHILD on their parent. Returns (leaf, created_count).
+    """
+    if not segments or len(segments) > MAX_PATH_DEPTH:
+        raise ValidationFailed(f"path must have between 1 and {MAX_PATH_DEPTH} segments")
+    names = [validate_name(s, what="Folder name") for s in segments]
+    org_id = authz.principal.organization_id
+    current = authz.require_folder(base_id, Action.DISCOVER)
+    created = 0
+    for name in names:
+        child = db.scalar(
+            select(Folder).where(
+                Folder.organization_id == org_id,
+                Folder.parent_folder_id == current.id,
+                func.lower(Folder.name) == name.lower(),
+                Folder.deleted_at.is_(None),
+            )
+        )
+        if child is not None:
+            if Action.DISCOVER.value not in authz.folder_actions([child.id]).get(
+                child.id, frozenset()
+            ):
+                raise ConflictError(
+                    "A file or folder with this name already exists here.", code="name_conflict"
+                )
+            current = child
+            continue
+        made = create_folder(db, authz, current.id, name)
+        created += 1
+        current = authz.require_folder(made.id, Action.DISCOVER)
+    perms = authz.folder_actions([current.id])[current.id]
+    return folder_out(db, authz, current, perms), created

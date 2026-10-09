@@ -24,11 +24,20 @@ class LocalStorageProvider:
         self.root.mkdir(parents=True, exist_ok=True)
 
     def _path(self, bucket: str, key: str) -> Path:
-        path = (self.root / bucket / key).resolve()
-        # Path traversal guard: the resolved path must stay inside root/bucket.
-        if not str(path).startswith(str((self.root / bucket).resolve())):
+        # Lexical traversal guard. (Not resolve()-based: resolving a not-yet-created path races
+        # with concurrent mkdir on Windows - short vs long names - and rejected valid keys.)
+        parts = key.replace("\\", "/").split("/")
+        if (
+            not key
+            or key.startswith("/")
+            or ":" in key
+            or any(p in ("", ".", "..") for p in parts)
+            or "/" in bucket
+            or "\\" in bucket
+            or bucket in ("", ".", "..")
+        ):
             raise StorageError("invalid object key")
-        return path
+        return self.root / bucket / Path(*parts)
 
     def put_object(
         self, bucket: str, key: str, data: BinaryIO, size: int, content_type: str

@@ -21,6 +21,8 @@ from app.schemas.sharing import (
     ShareOut,
 )
 from app.schemas.tree import (
+    EnsurePathIn,
+    EnsurePathOut,
     FolderCreate,
     FolderOut,
     FolderUpdate,
@@ -39,6 +41,18 @@ def get_root(db: DbSession, authz: Authz) -> FolderOut:
 @router.post("", response_model=FolderOut, status_code=201, summary="Create a folder")
 def create_folder(body: FolderCreate, db: DbSession, authz: Authz) -> FolderOut:
     return folders.create_folder(db, authz, body.parent_folder_id, body.name)
+
+
+@router.post(
+    "/{folder_id}/ensure-path",
+    response_model=EnsurePathOut,
+    summary="Find or create a nested folder path (used by folder upload / drag & drop)",
+)
+def ensure_path(
+    folder_id: uuid.UUID, body: EnsurePathIn, db: DbSession, authz: Authz
+) -> EnsurePathOut:
+    leaf, created = folders.ensure_path(db, authz, folder_id, body.path)
+    return EnsurePathOut(folder=leaf, created=created)
 
 
 @router.get("/{folder_id}", response_model=FolderOut, summary="Folder details")

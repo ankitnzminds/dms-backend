@@ -75,6 +75,14 @@ class Settings(BaseSettings):
     documenso_api_key: SecretStr | None = None
     documenso_webhook_secret: SecretStr | None = None
     signature_webhook_secret: SecretStr | None = None  # fake provider only
+
+    # --- AI assistance (Groq, OpenAI-compatible chat API) ---
+    ai_provider: Literal["auto", "none", "fake", "groq"] = "auto"
+    groq_api_key: SecretStr | None = None
+    groq_model: str = "openai/gpt-oss-20b"
+    groq_base_url: str = "https://api.groq.com/openai/v1"
+    ai_max_input_chars: int = 40_000
+    ai_timeout_seconds: int = 60
     signature_reconcile_minutes: int = 15
 
     # --- rate limiting (per process; see docs/security) ---
@@ -110,6 +118,12 @@ class Settings(BaseSettings):
         return "documenso" if self.documenso_url and self.documenso_api_key else "none"
 
     @property
+    def effective_ai_provider(self) -> str:
+        if self.ai_provider != "auto":
+            return self.ai_provider
+        return "groq" if self.groq_api_key else "none"
+
+    @property
     def cors_origins(self) -> list[str]:
         return [o.strip() for o in self.cors_allowed_origins.split(",") if o.strip()]
 
@@ -134,6 +148,8 @@ class Settings(BaseSettings):
                 problems.append(
                     "MALWARE_SCANNER must be a real scanner (clamd) in staging/production"
                 )
+            if self.ai_provider == "fake":
+                problems.append("AI_PROVIDER=fake is development/test only")
             if self.signature_provider == "fake":
                 problems.append("SIGNATURE_PROVIDER=fake is development/test only")
             if (

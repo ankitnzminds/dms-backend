@@ -363,6 +363,9 @@ def store_content(
         if meta is None or meta.size != size:
             raise StorageError("stored size mismatch")
     except StorageError as exc:
+        log.warning(
+            "upload_storage_failed", extra={"error": str(exc), "upload_id": str(session_id)}
+        )
         session = get_session(db, authz, session_id)
         _fail(db, session, "storage_error")
         raise DependencyUnavailableError("Storage rejected the upload. Please retry.") from exc

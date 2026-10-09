@@ -498,3 +498,40 @@ class TestPropertiesAndPreferences:
             == 422
         )
         assert a.get("/api/v1/me/preferences/Bad Key!").status_code in (404, 422)
+
+
+class TestEnsurePath:
+    def test_folder_upload_tree_is_created_idempotently_and_files_land_in_it(self, env):  # noqa: ANN001
+        w, a = env["world"], env["admin"]
+        url = f"/api/v1/folders/{env['src']}/ensure-path"
+        r = a.post(url, json={"path": ["2026", "invoices", "march"]})
+        assert r.status_code == 200, r.text
+        assert r.json()["created"] == 3 and r.json()["folder"]["name"] == "march"
+        leaf = r.json()["folder"]["id"]
+        again = a.post(url, json={"path": ["2026", "INVOICES", "march"]}).json()
+        assert again["created"] == 0 and again["folder"]["id"] == leaf  # case-insensitive reuse
+        doc = w.available_doc(a, leaf, "inv.pdf", PDF + b" inv")
+        assert a.get(f"/api/v1/documents/{doc}").json()["folder_id"] == leaf
+        partial = a.post(url, json={"path": ["2026", "invoices", "april"]}).json()
+        assert partial["created"] == 1
+
+    def test_validation_conflicts_and_authorization(self, env):  # noqa: ANN001
+        w, a = env["world"], env["admin"]
+        url = f"/api/v1/folders/{env['src']}/ensure-path"
+        assert a.post(url, json={"path": []}).status_code == 422
+        assert a.post(url, json={"path": ["a"] * 21}).status_code == 422
+        assert a.post(url, json={"path": ["ok", "bad/name"]}).status_code == 422
+        w.available_doc(a, env["src"], "taken", PDF + b" taken")
+        r = a.post(url, json={"path": ["taken", "x"]})
+        assert r.status_code == 409 and r.json()["error"]["code"] == "name_conflict"
+        m = w.user(a, "member", label="viewer")
+        a.post(
+            f"/api/v1/folders/{env['src']}/permissions",
+            json={"subject_type": "user", "subject_id": str(m.user_id), "actions": ["view"]},
+        )
+        assert m.post(url, json={"path": ["new"]}).status_code == 403
+        assert m.post(url, json={"path": []}).status_code == 422
+        assert w.org("Z").post(url, json={"path": ["new"]}).status_code == 404
+        # no creation happened for the viewer
+        kids = a.get(f"/api/v1/folders/{env['src']}/children").json()["items"]
+        assert "new" not in {k["name"] for k in kids}

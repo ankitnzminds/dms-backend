@@ -57,6 +57,7 @@ class TestConfigSafety:
             cors_allowed_origins="https://dms.example.com",
             download_signing_secret=SecretStr("x" * 40),
             signature_provider="none",
+            ai_provider="none",
         )
         assert s.is_production_like and s.cors_origins == ["https://dms.example.com"]
 

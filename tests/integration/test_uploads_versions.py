@@ -670,7 +670,7 @@ class TestConcurrentUploadsDoNotDeadlock:
                             (
                                 "put",
                                 put.status_code,
-                                "" if put.status_code == 200 else put.json()["error"]["code"],
+                                "" if put.status_code == 200 else put.text[:300],
                             )
                         )
                         fin = client.post(f"/api/v1/uploads/{sess['id']}/finalize", headers=h)

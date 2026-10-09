@@ -96,6 +96,19 @@ class FolderCreate(ApiModel):
     name: str = Field(min_length=1, max_length=255)
 
 
+class EnsurePathIn(ApiModel):
+    path: list[str] = Field(
+        min_length=1,
+        max_length=20,
+        description="Folder names below this folder, e.g. ['2026', 'invoices'].",
+    )
+
+
+class EnsurePathOut(ApiModel):
+    folder: FolderOut
+    created: int = Field(description="How many folders had to be created.")
+
+
 class FolderUpdate(ApiModel):
     name: str | None = Field(None, min_length=1, max_length=255)
     parent_folder_id: uuid.UUID | None = None
