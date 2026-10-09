@@ -22,6 +22,7 @@ def group_of(type_: str) -> str:
     head = type_.split(".", 1)[0]
     return {
         "share": "sharing",
+        "access_request": "sharing",
         "workflow": "workflow",
         "signature": "signature",
         "document": "document",

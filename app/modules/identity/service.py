@@ -146,3 +146,38 @@ def resolve_principal(
         role=membership.role,
         group_ids=group_ids,
     )
+
+
+def principal_for(db: Session, user_id: uuid.UUID, organization_id: uuid.UUID) -> Principal:
+    """Rebuild a Principal from server-side state for background work (agent runs). Fails closed
+    if the user, membership or organization is no longer active - access is never cached."""
+    row = db.execute(
+        select(User, Membership)
+        .join(Membership, Membership.user_id == User.id)
+        .join(Organization, Organization.id == Membership.organization_id)
+        .where(
+            User.id == user_id,
+            Membership.organization_id == organization_id,
+            Membership.status == MembershipStatus.ACTIVE.value,
+            Organization.status == OrgStatus.ACTIVE.value,
+        )
+    ).first()
+    if row is None or row[0].status != UserStatus.ACTIVE.value:
+        raise ForbiddenError("No active membership.", code="no_membership")
+    user, membership = row
+    group_ids = frozenset(
+        db.scalars(
+            select(GroupMembership.group_id).where(
+                GroupMembership.user_id == user.id,
+                GroupMembership.organization_id == organization_id,
+            )
+        )
+    )
+    return Principal(
+        user_id=user.id,
+        email=user.email,
+        display_name=user.display_name,
+        organization_id=organization_id,
+        role=membership.role,
+        group_ids=group_ids,
+    )

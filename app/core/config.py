@@ -83,6 +83,15 @@ class Settings(BaseSettings):
     groq_base_url: str = "https://api.groq.com/openai/v1"
     ai_max_input_chars: int = 40_000
     ai_timeout_seconds: int = 60
+
+    # --- agentic chat limits ---
+    agent_max_steps: int = 8
+    agent_max_tool_calls: int = 12
+    agent_max_runtime_seconds: int = 120
+    agent_max_bulk_items: int = 50
+    agent_action_ttl_minutes: int = 15
+    agent_history_messages: int = 12
+    agent_run_mode: Literal["thread", "inline"] = "thread"  # tests run inline
     signature_reconcile_minutes: int = 15
 
     # --- rate limiting (per process; see docs/security) ---

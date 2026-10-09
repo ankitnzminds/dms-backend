@@ -1,6 +1,14 @@
 """Import every model so Base.metadata is complete for Alembic and tests."""
 
 from app.db.models.access import PermissionGrant, ShareGrant, ShareRecipient
+from app.db.models.chat import (
+    AccessRequest,
+    AgentRun,
+    ChatConversation,
+    ChatMessage,
+    PendingAction,
+    ToolExecution,
+)
 from app.db.models.directory import (
     DirectoryGroupLink,
     DirectorySource,
@@ -38,6 +46,12 @@ from app.db.models.workflows import (
 )
 
 __all__ = [
+    "AccessRequest",
+    "AgentRun",
+    "ChatConversation",
+    "ChatMessage",
+    "PendingAction",
+    "ToolExecution",
     "DirectoryGroupLink",
     "DirectorySource",
     "DirectorySyncRun",
