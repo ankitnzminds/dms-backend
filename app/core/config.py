@@ -8,11 +8,20 @@ from __future__ import annotations
 
 from functools import lru_cache
 from typing import Literal
+from urllib.parse import urlparse
 
 from pydantic import SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 Environment = Literal["development", "test", "staging", "production"]
+
+_LOCAL_HOSTS = frozenset({"", "localhost", "127.0.0.1", "::1"})
+
+
+def _is_remote_database(url: str) -> bool:
+    """True when the URL names a host that is not this machine (unix-socket / empty host = local)."""
+    host = (urlparse(url).hostname or "").lower()
+    return host not in _LOCAL_HOSTS
 
 
 class Settings(BaseSettings):
@@ -93,6 +102,8 @@ class Settings(BaseSettings):
     agent_action_ttl_minutes: int = 15
     agent_history_messages: int = 12
     agent_run_mode: Literal["thread", "inline"] = "thread"  # tests run inline
+    # built-in signing: store the signer's IP address and user-agent in the evidence record
+    signature_record_client_info: bool = True
     signature_reconcile_minutes: int = 15
 
     # --- Office documents (Collabora Online via WOPI) ---
@@ -195,8 +206,18 @@ class Settings(BaseSettings):
                 or len(self.download_signing_secret.get_secret_value()) < 32
             ):
                 problems.append("DOWNLOAD_SIGNING_SECRET (>= 32 chars) is required")
+            if not self.database_url.strip():
+                problems.append("DATABASE_URL is required")
+            if self.auth_provider == "supabase" and not self.supabase_url.strip():
+                problems.append("SUPABASE_URL is required when AUTH_PROVIDER=supabase")
             if problems:
                 raise ValueError("Unsafe configuration: " + "; ".join(problems))
+        elif "app_env" not in self.model_fields_set and _is_remote_database(self.database_url):
+            # APP_ENV was never provided, so every production check above would be skipped silently.
+            raise ValueError(
+                "APP_ENV is not set but DATABASE_URL points to a remote database. Set APP_ENV "
+                "explicitly (development, test, staging or production)."
+            )
         return self
 
 

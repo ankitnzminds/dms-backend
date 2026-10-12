@@ -204,7 +204,12 @@ def bootstrap_organization(
                     resource_id=root.id,
                     subject_type=SubjectType.ORGANIZATION.value,
                     subject_id=None,
-                    actions=[Action.DISCOVER.value, Action.CREATE_CHILD.value],
+                    actions=[
+                        Action.DISCOVER.value,
+                        Action.CREATE_FOLDER.value,
+                        Action.UPLOAD.value,
+                        Action.CREATE_FILE.value,
+                    ],
                     inherit=False,
                     created_by=user.id,
                 )

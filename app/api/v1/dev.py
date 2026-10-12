@@ -16,6 +16,7 @@ from app.adapters.identity.jwt_providers import LocalJwtProvider
 from app.api.deps import DbSession
 from app.core.config import get_settings
 from app.core.errors import NotFoundError, UnauthorizedError
+from app.core.local_password import verify_password
 from app.db.enums import UserStatus
 from app.db.models import User
 from app.schemas.common import ApiModel
@@ -67,9 +68,13 @@ def dev_login(body: DevLoginRequest, db: DbSession) -> DevTokenResponse:
     production, where Supabase Auth is the only sign-in."""
     settings = get_settings()
     user = db.scalar(select(User).where(User.email == body.email.strip().lower()))
-    password_ok = hmac.compare_digest(
-        body.password.encode(), settings.local_dev_password.get_secret_value().encode()
-    )
+    # A user with an individual password must use it; everyone else uses the shared development password.
+    if user is not None and user.local_password_hash:
+        password_ok = verify_password(body.password, user.local_password_hash)
+    else:
+        password_ok = hmac.compare_digest(
+            body.password.encode(), settings.local_dev_password.get_secret_value().encode()
+        )
     if (
         user is None
         or not password_ok

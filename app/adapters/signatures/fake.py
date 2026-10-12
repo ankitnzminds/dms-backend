@@ -31,6 +31,7 @@ class _Doc:
     def __init__(self, content: bytes, signers: list[SignerSpec]) -> None:
         self.content = content
         self.send_email = False
+        self.placement: dict[str, float] | None = None
         self.recipients: dict[str, tuple[str, datetime | None]] = {
             s.email: ("pending", None) for s in signers
         }
@@ -49,7 +50,18 @@ class FakeSignatureProvider:
         self._secret = webhook_secret.encode()
 
     # ---- provider contract
-    def create_request(self, *, title, message, filename, content, size, signers, send_email=False):  # noqa: ANN001, ANN201
+    def create_request(  # noqa: ANN201
+        self,
+        *,
+        title,
+        message,
+        filename,
+        content,
+        size,
+        signers,
+        send_email=False,
+        placement=None,  # noqa: ANN001
+    ):
         if self.unavailable or FakeSignatureProvider.fail_next_create:
             FakeSignatureProvider.fail_next_create = False
             raise SignatureProviderError("provider unavailable")
@@ -58,6 +70,7 @@ class FakeSignatureProvider:
         with self._lock:
             self._docs[rid] = _Doc(data, signers)
         self._docs[rid].send_email = send_email
+        self._docs[rid].placement = placement
         return CreatedRequest(
             rid,
             {s.email: f"{rid}-{i}" for i, s in enumerate(signers)},

@@ -25,6 +25,7 @@ from app.db.models import DocumentVersion, StorageLocation
 from app.modules.audit import service as audit
 from app.modules.authorization.service import AuthorizationService
 from app.modules.documents.downloads import _servable_version
+from app.modules.documents.locks import assert_download_allowed
 from app.modules.office import formats
 
 CONVERTIBLE = formats.SUPPORTED | {"txt", "csv", "md"}
@@ -62,6 +63,7 @@ def _bytes(db: Session, version: DocumentVersion) -> bytes:
 def to_pdf(db: Session, authz: AuthorizationService, document_id: uuid.UUID) -> tuple[bytes, str]:
     p = authz.principal
     doc = authz.require_document(document_id, Action.DOWNLOAD)
+    assert_download_allowed(doc, p)
     ext = formats.extension(doc.name)
     if ext == "pdf":
         raise ValidationFailed(

@@ -109,6 +109,13 @@ class ItemProperties(ApiModel):
 
 class LockIn(ApiModel):
     minutes: int | None = Field(None, ge=5, le=10080, description="Defaults to 8 hours.")
+    expires_at: datetime | None = Field(
+        None, description="Lock until this moment (must be in the future, at most one year ahead)."
+    )
+    no_expiry: bool = Field(False, description="Hold the lock until it is released.")
+    prevent_download: bool = Field(
+        False, description="While locked, nobody but the holder can download."
+    )
 
 
 class PreferenceValue(ApiModel):

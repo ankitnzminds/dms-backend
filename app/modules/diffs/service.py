@@ -118,6 +118,7 @@ def compare(
     if from_n == to_n:
         raise ValidationFailed("Pick two different versions.", code="same_version")
     doc = authz.require_document(document_id, Action.DOWNLOAD)
+    authz.require_document(document_id, Action.VIEW_VERSIONS)  # comparing reads two versions
     a = _version(db, doc.id, p.organization_id, from_n)
     b = _version(db, doc.id, p.organization_id, to_n)
     kind = _kind(doc.name, b.content_type)

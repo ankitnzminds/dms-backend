@@ -310,31 +310,43 @@ def _active_user_ids(db: Session, org_id: uuid.UUID, ids: set[uuid.UUID]) -> set
 
 def _resolve_assignees(
     db: Session, org_id: uuid.UUID, step: dict[str, Any], exclude: uuid.UUID
-) -> list[uuid.UUID]:
-    candidates: set[uuid.UUID] = set()
+) -> list[tuple[uuid.UUID, bool, bool]]:
+    """(user, optional, super approver) for everyone the step resolves to. A person matched by several
+    assignee entries is optional/super if ANY entry says so (same merge rule as signature chains)."""
+    flags: dict[uuid.UUID, list[bool]] = {}
+
+    def add(users: Iterable[uuid.UUID], a: dict[str, Any]) -> None:
+        for uid in users:
+            cur = flags.setdefault(uid, [False, False])
+            cur[0] = cur[0] or bool(a.get("optional"))
+            cur[1] = cur[1] or bool(a.get("is_super_approver"))
+
     for a in step["assignees"]:
         if a["type"] == "user":
-            candidates.add(uuid.UUID(a["id"]))
+            add([uuid.UUID(a["id"])], a)
         elif a["type"] == "group":
-            candidates.update(
+            add(
                 db.scalars(
                     select(GroupMembership.user_id).where(
                         GroupMembership.group_id == uuid.UUID(a["id"]),
                         GroupMembership.organization_id == org_id,
                     )
-                )
+                ),
+                a,
             )
         else:
-            candidates.update(
+            add(
                 db.scalars(
                     select(Membership.user_id).where(
                         Membership.organization_id == org_id,
                         Membership.role == a["role"],
                         Membership.status == MembershipStatus.ACTIVE.value,
                     )
-                )
+                ),
+                a,
             )
-    return sorted(_active_user_ids(db, org_id, candidates) - {exclude}, key=str)
+    eligible = _active_user_ids(db, org_id, set(flags)) - {exclude}
+    return [(uid, flags[uid][0], flags[uid][1]) for uid in sorted(eligible, key=str)]
 
 
 def _condition_true(cond: dict[str, Any] | None, doc: Document, version: DocumentVersion) -> bool:
@@ -435,7 +447,7 @@ def _activate_from(db: Session, run: WorkflowRun, start: int) -> None:
             _finish(db, run, "rejected", f"No eligible approver for step '{step['name']}'.", None)
             return
         due = datetime.now(UTC) + timedelta(days=step["due_days"]) if step.get("due_days") else None
-        for uid in assignees:
+        for uid, optional, super_approver in assignees:
             task = WorkflowTask(
                 id=uuid.uuid4(),
                 organization_id=run.organization_id,
@@ -445,6 +457,8 @@ def _activate_from(db: Session, run: WorkflowRun, start: int) -> None:
                 step_name=step["name"],
                 rule=step.get("rule", "all"),
                 assignee_id=uid,
+                optional=optional,
+                is_super_approver=super_approver,
                 due_at=due,
                 escalate_to_id=uuid.UUID(step["escalate_to_user_id"])
                 if step.get("escalate_to_user_id")
@@ -689,6 +703,35 @@ def decide(
     approved = [t for t in siblings if t.status == "approved"]
 
     step_done = step_failed = False
+    if target == "approved" and task.is_super_approver:
+        # A super approver fast-forwards: everyone still pending (this step and later ones) is skipped
+        # and the document is approved at once.
+        bypassed = list(
+            db.scalars(
+                select(WorkflowTask).where(
+                    WorkflowTask.run_id == run.id, WorkflowTask.status == "pending"
+                )
+            )
+        )
+        for t in bypassed:
+            t.status, t.comment = (
+                "skipped",
+                "Bypassed - a super-approver approved and fast-forwarded the remaining chain",
+            )
+        audit.record(
+            db,
+            organization_id=p.organization_id,
+            actor_user_id=p.user_id,
+            action="workflow.chain_override",
+            resource_type="document",
+            resource_id=run.document_id,
+            metadata={"run_id": str(run.id), "step": task.step_index, "bypassed": len(bypassed)},
+        )
+        _log(db, run, "chain_override", p.user_id, step=task.step_index, bypassed=len(bypassed))
+        run.current_step = len(_steps_of(db, run))
+        _finish(db, run, "approved", comment, p.user_id)
+        db.commit()
+        return _task_out(db, [task])[0]
     if task.rule == "any":
         if target == "approved":
             step_done = True
@@ -696,10 +739,19 @@ def decide(
                 t.status = "skipped"
         elif not pending and not approved:
             step_failed = True
-    elif target == "rejected":
-        step_failed = True
-    elif not pending:
-        step_done = True
+    else:
+        required = [t for t in siblings if not t.optional]
+        if target == "rejected" and not task.optional:
+            step_failed = True  # a required approver rejected: the chain halts
+        elif not pending and not approved:
+            step_failed = True  # nobody is left who could approve
+        elif required:
+            step_done = not any(t.status == "pending" for t in required)
+        else:  # a step of optional approvers only needs one approval
+            step_done = bool(approved)
+        if step_done:
+            for t in pending:  # optional approvers still pending are no longer needed
+                t.status = "skipped"
 
     if step_failed:
         _finish(db, run, "rejected", comment, p.user_id)
@@ -854,6 +906,8 @@ def _task_out(
                 else None,
                 started_by=_ref(users, run.started_by) if run else None,
                 note=run.note if run else None,
+                optional=t.optional,
+                is_super_approver=t.is_super_approver,
             )
         )
     return out

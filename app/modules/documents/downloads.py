@@ -48,6 +48,7 @@ from app.db.models import (
 )
 from app.modules.audit import service as audit
 from app.modules.authorization.service import AuthorizationService
+from app.modules.documents.locks import assert_download_allowed
 from app.modules.documents.service import touch_recent
 from app.modules.identity.principal import Principal
 
@@ -142,6 +143,12 @@ def create_download_url(
     inline = inline or thumbnail
     action = Action.PREVIEW if inline else Action.DOWNLOAD
     doc = authz.require_document(document_id, action)
+    if version_number is not None and version_number != doc.latest_version_number:
+        authz.require_document(
+            document_id, Action.VIEW_VERSIONS
+        )  # earlier versions need that right
+    if not inline:
+        assert_download_allowed(doc, p)  # a lock holder may switch downloads off for everyone else
     version = _servable_version(db, doc.organization_id, doc, version_number)
     if thumbnail:
         from app.modules.processing.service import derivative_for

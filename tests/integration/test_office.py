@@ -45,6 +45,8 @@ def office(monkeypatch):  # noqa: ANN001, ANN201
         ("edit", "docx"): "http://office.test:9980/browser/abc/cool.html?",
         ("view", "doc"): "http://office.test:9980/browser/abc/cool.html?",
         ("view", "xlsx"): "http://office.test:9980/browser/abc/cool.html?",
+        ("view", "txt"): "http://office.test:9980/browser/abc/cool.html?",
+        ("edit", "txt"): "http://office.test:9980/browser/abc/cool.html?",
     }
     monkeypatch.setattr(discovery, "_load", lambda: table)
     yield
@@ -89,7 +91,7 @@ class TestSession:
 
     def test_unavailable_when_not_configured_and_unsupported_types(self, env, monkeypatch):  # noqa: ANN001
         a, w = env["admin"], env["world"]
-        txt = w.available_doc(a, env["folder"], "n.txt", b"plain")
+        txt = w.available_doc(a, env["folder"], "n.bin", b"plain")
         r = session(a, txt)
         assert r.status_code == 422 and r.json()["error"]["code"] == "office_unsupported_type"
         from app.core.config import reset_settings_cache
@@ -229,6 +231,38 @@ class TestWopiHost:
         assert (
             wopi(w.client, "GET", env["doc"], ticket).status_code == 401
         )  # a download ticket is not a WOPI token
+
+    def test_text_files_can_be_edited_and_every_save_is_a_new_version(self, env):  # noqa: ANN001
+        w, a = env["world"], env["admin"]
+        txt = w.available_doc(a, env["folder"], "Test.txt", b"first line\n")
+        s = session(a, txt, "edit").json()
+        assert s["mode"] == "edit" and s["can_edit"]
+        tok, c = s["access_token"], w.client
+        assert (
+            wopi(
+                c, "POST", txt, tok, headers={"X-WOPI-Override": "LOCK", "X-WOPI-Lock": "T1"}
+            ).status_code
+            == 200
+        )
+        saved = wopi(
+            c,
+            "POST",
+            txt,
+            tok,
+            "/contents",
+            headers={"X-WOPI-Override": "PUT", "X-WOPI-Lock": "T1"},
+            content=b"first line\nsecond line\n",
+        )
+        assert saved.status_code == 200 and saved.headers["x-wopi-itemversion"] == "2"
+        w.process_jobs()
+        versions = a.get(f"{API}/documents/{txt}/versions").json()
+        assert [v["version_number"] for v in versions] == [2, 1]
+        old = a.post(f"{API}/documents/{txt}/download-url", json={"version_number": 1}).json()[
+            "url"
+        ]
+        assert (
+            c.get(old.replace("http://testserver", "")).content == b"first line\n"
+        )  # v1 untouched
 
     def test_lock_save_creates_a_new_version_and_keeps_history(self, env):  # noqa: ANN001
         w, a = env["world"], env["admin"]

@@ -132,6 +132,144 @@
         "title": "AccessCheckRequest",
         "type": "object"
       },
+      "AccessEntry": {
+        "properties": {
+          "actions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Actions",
+            "type": "array"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "expiring_soon": {
+            "default": false,
+            "title": "Expiring Soon",
+            "type": "boolean"
+          },
+          "granted_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Granted By"
+          },
+          "granted_by_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Granted By Id"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "inherited": {
+            "default": false,
+            "title": "Inherited",
+            "type": "boolean"
+          },
+          "permissions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Permissions",
+            "type": "array"
+          },
+          "resource_id": {
+            "format": "uuid",
+            "title": "Resource Id",
+            "type": "string"
+          },
+          "resource_name": {
+            "title": "Resource Name",
+            "type": "string"
+          },
+          "resource_type": {
+            "enum": [
+              "document",
+              "folder"
+            ],
+            "title": "Resource Type",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "grant",
+              "share"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "subject_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject Id"
+          },
+          "subject_label": {
+            "title": "Subject Label",
+            "type": "string"
+          },
+          "subject_type": {
+            "enum": [
+              "user",
+              "group",
+              "organization",
+              "link"
+            ],
+            "title": "Subject Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "source",
+          "resource_type",
+          "resource_id",
+          "resource_name",
+          "subject_type",
+          "subject_label",
+          "actions",
+          "permissions",
+          "created_at"
+        ],
+        "title": "AccessEntry",
+        "type": "object"
+      },
       "AccessRequestCreate": {
         "properties": {
           "actions": {
@@ -154,7 +292,13 @@
                 "comment",
                 "export",
                 "sync",
-                "administer"
+                "administer",
+                "create_folder",
+                "upload",
+                "create_file",
+                "view_versions",
+                "restore_version",
+                "lock"
               ],
               "type": "string"
             },
@@ -216,7 +360,13 @@
                     "comment",
                     "export",
                     "sync",
-                    "administer"
+                    "administer",
+                    "create_folder",
+                    "upload",
+                    "create_file",
+                    "view_versions",
+                    "restore_version",
+                    "lock"
                   ],
                   "type": "string"
                 },
@@ -1524,6 +1674,132 @@
         "title": "AiSummaryOut",
         "type": "object"
       },
+      "ApprovalChainEntryIn": {
+        "properties": {
+          "is_super_approver": {
+            "default": false,
+            "title": "Is Super Approver",
+            "type": "boolean"
+          },
+          "optional": {
+            "default": false,
+            "title": "Optional",
+            "type": "boolean"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id"
+        ],
+        "title": "ApprovalChainEntryIn",
+        "type": "object"
+      },
+      "ApprovalChainIn": {
+        "description": "Levels run in order; approvers inside a level are asked in parallel. Empty = remove the chain.",
+        "properties": {
+          "group_ids": {
+            "items": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "maxItems": 20,
+            "title": "Group Ids",
+            "type": "array"
+          },
+          "levels": {
+            "items": {
+              "items": {
+                "$ref": "#/components/schemas/ApprovalChainEntryIn"
+              },
+              "type": "array"
+            },
+            "maxItems": 20,
+            "title": "Levels",
+            "type": "array"
+          }
+        },
+        "title": "ApprovalChainIn",
+        "type": "object"
+      },
+      "ApprovalChainOut": {
+        "properties": {
+          "definition_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Definition Id"
+          },
+          "folder_id": {
+            "format": "uuid",
+            "title": "Folder Id",
+            "type": "string"
+          },
+          "levels": {
+            "items": {
+              "items": {
+                "$ref": "#/components/schemas/ApprovalChainSignerOut"
+              },
+              "type": "array"
+            },
+            "title": "Levels",
+            "type": "array"
+          }
+        },
+        "required": [
+          "folder_id",
+          "definition_id",
+          "levels"
+        ],
+        "title": "ApprovalChainOut",
+        "type": "object"
+      },
+      "ApprovalChainSignerOut": {
+        "properties": {
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "is_super_approver": {
+            "title": "Is Super Approver",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "optional": {
+            "title": "Optional",
+            "type": "boolean"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "name",
+          "email",
+          "optional",
+          "is_super_approver"
+        ],
+        "title": "ApprovalChainSignerOut",
+        "type": "object"
+      },
       "AssigneeSpec": {
         "properties": {
           "id": {
@@ -1537,6 +1813,16 @@
               }
             ],
             "title": "Id"
+          },
+          "is_super_approver": {
+            "default": false,
+            "title": "Is Super Approver",
+            "type": "boolean"
+          },
+          "optional": {
+            "default": false,
+            "title": "Optional",
+            "type": "boolean"
           },
           "role": {
             "anyOf": [
@@ -1569,6 +1855,48 @@
           "type"
         ],
         "title": "AssigneeSpec",
+        "type": "object"
+      },
+      "AttributeInfo": {
+        "properties": {
+          "choices": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Choices",
+            "type": "array"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "operators": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Operators",
+            "type": "array"
+          },
+          "resource_types": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Resource Types",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "kind",
+          "resource_types",
+          "choices",
+          "operators"
+        ],
+        "title": "AttributeInfo",
         "type": "object"
       },
       "AuditEventOut": {
@@ -2640,6 +2968,119 @@
         "title": "CatalogueOut",
         "type": "object"
       },
+      "ChainEntryIn": {
+        "properties": {
+          "is_super_signer": {
+            "default": false,
+            "title": "Is Super Signer",
+            "type": "boolean"
+          },
+          "optional": {
+            "default": false,
+            "title": "Optional",
+            "type": "boolean"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id"
+        ],
+        "title": "ChainEntryIn",
+        "type": "object"
+      },
+      "ChainIn": {
+        "description": "Levels run in order; signers inside a level are parallel. An empty list clears the chain.",
+        "properties": {
+          "group_ids": {
+            "items": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "maxItems": 20,
+            "title": "Group Ids",
+            "type": "array"
+          },
+          "levels": {
+            "items": {
+              "items": {
+                "$ref": "#/components/schemas/ChainEntryIn"
+              },
+              "type": "array"
+            },
+            "maxItems": 20,
+            "title": "Levels",
+            "type": "array"
+          }
+        },
+        "title": "ChainIn",
+        "type": "object"
+      },
+      "ChainOut": {
+        "properties": {
+          "folder_id": {
+            "format": "uuid",
+            "title": "Folder Id",
+            "type": "string"
+          },
+          "levels": {
+            "items": {
+              "items": {
+                "$ref": "#/components/schemas/ChainSignerOut"
+              },
+              "type": "array"
+            },
+            "title": "Levels",
+            "type": "array"
+          }
+        },
+        "required": [
+          "folder_id",
+          "levels"
+        ],
+        "title": "ChainOut",
+        "type": "object"
+      },
+      "ChainSignerOut": {
+        "properties": {
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "is_super_signer": {
+            "title": "Is Super Signer",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "optional": {
+            "title": "Optional",
+            "type": "boolean"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "name",
+          "email",
+          "optional",
+          "is_super_signer"
+        ],
+        "title": "ChainSignerOut",
+        "type": "object"
+      },
       "ChatStatus": {
         "properties": {
           "action_ttl_minutes": {
@@ -3105,6 +3546,48 @@
         "title": "ConversationPatch",
         "type": "object"
       },
+      "DeadEventOut": {
+        "properties": {
+          "attempts": {
+            "title": "Attempts",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "event_type": {
+            "title": "Event Type",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          }
+        },
+        "required": [
+          "id",
+          "event_type",
+          "attempts",
+          "last_error",
+          "created_at"
+        ],
+        "title": "DeadEventOut",
+        "type": "object"
+      },
       "DecisionIn": {
         "properties": {
           "comment": {
@@ -3132,6 +3615,24 @@
           "decision"
         ],
         "title": "DecisionIn",
+        "type": "object"
+      },
+      "DeclineIn": {
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "title": "DeclineIn",
         "type": "object"
       },
       "DelegateIn": {
@@ -3812,7 +4313,13 @@
                 "comment",
                 "export",
                 "sync",
-                "administer"
+                "administer",
+                "create_folder",
+                "upload",
+                "create_file",
+                "view_versions",
+                "restore_version",
+                "lock"
               ],
               "type": "string"
             },
@@ -4030,6 +4537,38 @@
           "to"
         ],
         "title": "EdgeDef",
+        "type": "object"
+      },
+      "EffectiveAccessOut": {
+        "properties": {
+          "actions": {
+            "description": "Actions the caller holds, from the one authorization engine.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Actions",
+            "type": "array"
+          },
+          "resource_id": {
+            "format": "uuid",
+            "title": "Resource Id",
+            "type": "string"
+          },
+          "resource_type": {
+            "enum": [
+              "document",
+              "folder"
+            ],
+            "title": "Resource Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "resource_type",
+          "resource_id",
+          "actions"
+        ],
+        "title": "EffectiveAccessOut",
         "type": "object"
       },
       "EffectivePolicyOut": {
@@ -4360,6 +4899,16 @@
             "title": "Is Team Folder",
             "type": "boolean"
           },
+          "lock": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LockOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -4396,7 +4945,13 @@
                 "comment",
                 "export",
                 "sync",
-                "administer"
+                "administer",
+                "create_folder",
+                "upload",
+                "create_file",
+                "view_versions",
+                "restore_version",
+                "lock"
               ],
               "type": "string"
             },
@@ -4479,6 +5034,107 @@
           }
         },
         "title": "FolderUpdate",
+        "type": "object"
+      },
+      "Grammar": {
+        "properties": {
+          "access_levels": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Access Levels",
+            "type": "array"
+          },
+          "actions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Actions",
+            "type": "array"
+          },
+          "attributes": {
+            "items": {
+              "$ref": "#/components/schemas/AttributeInfo"
+            },
+            "title": "Attributes",
+            "type": "array"
+          },
+          "effects": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Effects",
+            "type": "array"
+          },
+          "group_ops": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Group Ops",
+            "type": "array"
+          },
+          "limits": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Limits",
+            "type": "object"
+          },
+          "operators": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Operators",
+            "type": "array"
+          },
+          "resource_types": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Resource Types",
+            "type": "array"
+          },
+          "roles": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Roles",
+            "type": "array"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "scope_types": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Scope Types",
+            "type": "array"
+          },
+          "unsupported_effects": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Unsupported Effects",
+            "type": "array"
+          }
+        },
+        "required": [
+          "schema_version",
+          "effects",
+          "unsupported_effects",
+          "operators",
+          "group_ops",
+          "scope_types",
+          "resource_types",
+          "actions",
+          "roles",
+          "access_levels",
+          "attributes",
+          "limits"
+        ],
+        "title": "Grammar",
         "type": "object"
       },
       "GraphDef": {
@@ -5353,7 +6009,13 @@
                 "comment",
                 "export",
                 "sync",
-                "administer"
+                "administer",
+                "create_folder",
+                "upload",
+                "create_file",
+                "view_versions",
+                "restore_version",
+                "lock"
               ],
               "type": "string"
             },
@@ -5639,6 +6301,19 @@
       },
       "LockIn": {
         "properties": {
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Lock until this moment (must be in the future, at most one year ahead).",
+            "title": "Expires At"
+          },
           "minutes": {
             "anyOf": [
               {
@@ -5652,6 +6327,18 @@
             ],
             "description": "Defaults to 8 hours.",
             "title": "Minutes"
+          },
+          "no_expiry": {
+            "default": false,
+            "description": "Hold the lock until it is released.",
+            "title": "No Expiry",
+            "type": "boolean"
+          },
+          "prevent_download": {
+            "default": false,
+            "description": "While locked, nobody but the holder can download.",
+            "title": "Prevent Download",
+            "type": "boolean"
           }
         },
         "title": "LockIn",
@@ -5682,6 +6369,11 @@
           },
           "locked_by": {
             "$ref": "#/components/schemas/UserRef"
+          },
+          "prevent_download": {
+            "default": false,
+            "title": "Prevent Download",
+            "type": "boolean"
           }
         },
         "required": [
@@ -5702,6 +6394,58 @@
           }
         },
         "title": "LogoutIn",
+        "type": "object"
+      },
+      "MatchedPolicy": {
+        "properties": {
+          "effect": {
+            "title": "Effect",
+            "type": "string"
+          },
+          "mandatory": {
+            "title": "Mandatory",
+            "type": "boolean"
+          },
+          "mode": {
+            "enum": [
+              "enforce",
+              "observe"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "policy_id": {
+            "format": "uuid",
+            "title": "Policy Id",
+            "type": "string"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "source": {
+            "enum": [
+              "published",
+              "draft"
+            ],
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "policy_id",
+          "name",
+          "revision",
+          "effect",
+          "mandatory",
+          "source",
+          "mode"
+        ],
+        "title": "MatchedPolicy",
         "type": "object"
       },
       "MeOut": {
@@ -6314,6 +7058,107 @@
         "title": "MetadataDefinitionUpdate",
         "type": "object"
       },
+      "MissingObject": {
+        "properties": {
+          "document_id": {
+            "format": "uuid",
+            "title": "Document Id",
+            "type": "string"
+          },
+          "document_name": {
+            "title": "Document Name",
+            "type": "string"
+          },
+          "version_id": {
+            "format": "uuid",
+            "title": "Version Id",
+            "type": "string"
+          },
+          "version_number": {
+            "title": "Version Number",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "document_id",
+          "document_name",
+          "version_number",
+          "version_id"
+        ],
+        "title": "MissingObject",
+        "type": "object"
+      },
+      "ModeIn": {
+        "properties": {
+          "mode": {
+            "enum": [
+              "enforce",
+              "observe"
+            ],
+            "title": "Mode",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "title": "ModeIn",
+        "type": "object"
+      },
+      "MyActivityItem": {
+        "description": "One thing the signed-in user did, phrased for a feed: \"You <verb> <target_name>\".",
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "target_id": {
+            "format": "uuid",
+            "title": "Target Id",
+            "type": "string"
+          },
+          "target_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Name"
+          },
+          "target_type": {
+            "title": "Target Type",
+            "type": "string"
+          },
+          "verb": {
+            "title": "Verb",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "action",
+          "verb",
+          "target_type",
+          "target_id",
+          "target_name",
+          "at"
+        ],
+        "title": "MyActivityItem",
+        "type": "object"
+      },
       "NodeDef": {
         "properties": {
           "id": {
@@ -6802,6 +7647,38 @@
         "title": "OrganizationUpdate",
         "type": "object"
       },
+      "Page_AccessEntry_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AccessEntry"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "description": "Total items visible to the caller (after authorization).",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "Page[AccessEntry]",
+        "type": "object"
+      },
       "Page_AccessRequestOut_": {
         "properties": {
           "items": {
@@ -7090,6 +7967,38 @@
         "title": "Page[MessageOut]",
         "type": "object"
       },
+      "Page_PolicyOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PolicyOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "description": "Total items visible to the caller (after authorization).",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "Page[PolicyOut]",
+        "type": "object"
+      },
       "Page_QuarantineItem_": {
         "properties": {
           "items": {
@@ -7152,6 +8061,38 @@
           "offset"
         ],
         "title": "Page[ReceivedShare]",
+        "type": "object"
+      },
+      "Page_RecycleItem_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RecycleItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "description": "Total items visible to the caller (after authorization).",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "Page[RecycleItem]",
         "type": "object"
       },
       "Page_SearchResult_": {
@@ -7480,7 +8421,13 @@
                 "comment",
                 "export",
                 "sync",
-                "administer"
+                "administer",
+                "create_folder",
+                "upload",
+                "create_file",
+                "view_versions",
+                "restore_version",
+                "lock"
               ],
               "type": "string"
             },
@@ -7557,7 +8504,13 @@
                 "comment",
                 "export",
                 "sync",
-                "administer"
+                "administer",
+                "create_folder",
+                "upload",
+                "create_file",
+                "view_versions",
+                "restore_version",
+                "lock"
               ],
               "type": "string"
             },
@@ -7684,6 +8637,277 @@
         "title": "PermissionGrantOut",
         "type": "object"
       },
+      "PlacementIn": {
+        "description": "Where the signature goes on the signing PDF, as percentages of the page (0-100).",
+        "properties": {
+          "page_height": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 100.0,
+            "title": "Page Height",
+            "type": "number"
+          },
+          "page_number": {
+            "maximum": 10000.0,
+            "minimum": 1.0,
+            "title": "Page Number",
+            "type": "integer"
+          },
+          "page_width": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 100.0,
+            "title": "Page Width",
+            "type": "number"
+          },
+          "page_x": {
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Page X",
+            "type": "number"
+          },
+          "page_y": {
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Page Y",
+            "type": "number"
+          }
+        },
+        "required": [
+          "page_number",
+          "page_x",
+          "page_y",
+          "page_width",
+          "page_height"
+        ],
+        "title": "PlacementIn",
+        "type": "object"
+      },
+      "PolicyCreate": {
+        "properties": {
+          "category": {
+            "default": "custom",
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Category",
+            "type": "string"
+          },
+          "change_reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change Reason"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "document": {
+            "additionalProperties": true,
+            "title": "Document",
+            "type": "object"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "template_key": {
+            "anyOf": [
+              {
+                "maxLength": 60,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Template Key"
+          }
+        },
+        "required": [
+          "name",
+          "document"
+        ],
+        "title": "PolicyCreate",
+        "type": "object"
+      },
+      "PolicyDetail": {
+        "properties": {
+          "actions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Actions",
+            "type": "array"
+          },
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "effect": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effect"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "latest_revision": {
+            "title": "Latest Revision",
+            "type": "integer"
+          },
+          "latest_revision_status": {
+            "enum": [
+              "draft",
+              "validated",
+              "published",
+              "superseded"
+            ],
+            "title": "Latest Revision Status",
+            "type": "string"
+          },
+          "mandatory": {
+            "title": "Mandatory",
+            "type": "boolean"
+          },
+          "mode": {
+            "enum": [
+              "enforce",
+              "observe"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "owner_kind": {
+            "enum": [
+              "organization",
+              "user"
+            ],
+            "title": "Owner Kind",
+            "type": "string"
+          },
+          "owner_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner User Id"
+          },
+          "published_revision": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published Revision"
+          },
+          "revisions": {
+            "items": {
+              "$ref": "#/components/schemas/RevisionOut"
+            },
+            "title": "Revisions",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "draft",
+              "published",
+              "disabled",
+              "archived"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "template_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Template Key"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "category",
+          "owner_kind",
+          "owner_user_id",
+          "status",
+          "mode",
+          "mandatory",
+          "template_key",
+          "published_revision",
+          "latest_revision",
+          "latest_revision_status",
+          "effect",
+          "actions",
+          "created_at",
+          "updated_at",
+          "revisions"
+        ],
+        "title": "PolicyDetail",
+        "type": "object"
+      },
       "PolicyDocument": {
         "description": "Overrides stored at one scope + the version for optimistic concurrency.",
         "properties": {
@@ -7705,6 +8929,179 @@
           "version"
         ],
         "title": "PolicyDocument",
+        "type": "object"
+      },
+      "PolicyIssue": {
+        "properties": {
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "message"
+        ],
+        "title": "PolicyIssue",
+        "type": "object"
+      },
+      "PolicyOut": {
+        "properties": {
+          "actions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Actions",
+            "type": "array"
+          },
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "effect": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effect"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "latest_revision": {
+            "title": "Latest Revision",
+            "type": "integer"
+          },
+          "latest_revision_status": {
+            "enum": [
+              "draft",
+              "validated",
+              "published",
+              "superseded"
+            ],
+            "title": "Latest Revision Status",
+            "type": "string"
+          },
+          "mandatory": {
+            "title": "Mandatory",
+            "type": "boolean"
+          },
+          "mode": {
+            "enum": [
+              "enforce",
+              "observe"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "owner_kind": {
+            "enum": [
+              "organization",
+              "user"
+            ],
+            "title": "Owner Kind",
+            "type": "string"
+          },
+          "owner_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner User Id"
+          },
+          "published_revision": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published Revision"
+          },
+          "status": {
+            "enum": [
+              "draft",
+              "published",
+              "disabled",
+              "archived"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "template_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Template Key"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "category",
+          "owner_kind",
+          "owner_user_id",
+          "status",
+          "mode",
+          "mandatory",
+          "template_key",
+          "published_revision",
+          "latest_revision",
+          "latest_revision_status",
+          "effect",
+          "actions",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "PolicyOut",
         "type": "object"
       },
       "PolicyPut": {
@@ -7733,6 +9130,173 @@
           "overrides"
         ],
         "title": "PolicyPut",
+        "type": "object"
+      },
+      "PolicyTemplate": {
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "document": {
+            "additionalProperties": true,
+            "title": "Document",
+            "type": "object"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Limitations",
+            "type": "array"
+          },
+          "mandatory": {
+            "title": "Mandatory",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "purpose": {
+            "title": "Purpose",
+            "type": "string"
+          },
+          "requires": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Requires",
+            "type": "array"
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "category",
+          "purpose",
+          "mandatory",
+          "requires",
+          "limitations",
+          "document"
+        ],
+        "title": "PolicyTemplate",
+        "type": "object"
+      },
+      "PolicyUpdate": {
+        "description": "Edit the working draft. Editing a published policy opens a NEW draft revision.",
+        "properties": {
+          "change_reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change Reason"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "document": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "title": "PolicyUpdate",
+        "type": "object"
+      },
+      "PolicyValidationReport": {
+        "properties": {
+          "affected_members": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Affected Members"
+          },
+          "issues": {
+            "items": {
+              "$ref": "#/components/schemas/PolicyIssue"
+            },
+            "title": "Issues",
+            "type": "array"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "scope_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope Name"
+          },
+          "valid": {
+            "title": "Valid",
+            "type": "boolean"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "valid",
+          "issues",
+          "warnings",
+          "revision"
+        ],
+        "title": "PolicyValidationReport",
         "type": "object"
       },
       "PreferenceValue": {
@@ -7897,6 +9461,30 @@
         "title": "ProcessingStatusOut",
         "type": "object"
       },
+      "ProtectionBrief": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "reason"
+        ],
+        "title": "ProtectionBrief",
+        "type": "object"
+      },
       "ProtectionInfo": {
         "properties": {
           "legal_hold": {
@@ -7959,6 +9547,33 @@
         "title": "ProtectionOut",
         "type": "object"
       },
+      "PublishIn": {
+        "properties": {
+          "change_reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change Reason"
+          },
+          "mode": {
+            "default": "enforce",
+            "enum": [
+              "enforce",
+              "observe"
+            ],
+            "title": "Mode",
+            "type": "string"
+          }
+        },
+        "title": "PublishIn",
+        "type": "object"
+      },
       "PublishRequest": {
         "properties": {
           "confirm_high_risk": {
@@ -7970,6 +9585,24 @@
         "title": "PublishRequest",
         "type": "object"
       },
+      "PurgeIn": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RecycleRef"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "PurgeIn",
+        "type": "object"
+      },
       "PurgeOut": {
         "properties": {
           "documents": {
@@ -7979,6 +9612,11 @@
           "folders": {
             "title": "Folders",
             "type": "integer"
+          },
+          "retained": {
+            "default": false,
+            "title": "Retained",
+            "type": "boolean"
           }
         },
         "required": [
@@ -8179,7 +9817,13 @@
                 "comment",
                 "export",
                 "sync",
-                "administer"
+                "administer",
+                "create_folder",
+                "upload",
+                "create_file",
+                "view_versions",
+                "restore_version",
+                "lock"
               ],
               "type": "string"
             },
@@ -8389,6 +10033,390 @@
         "title": "RecipientOut",
         "type": "object"
       },
+      "RecycleBulkOut": {
+        "properties": {
+          "failed": {
+            "title": "Failed",
+            "type": "integer"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/RecycleBulkResult"
+            },
+            "title": "Results",
+            "type": "array"
+          },
+          "succeeded": {
+            "title": "Succeeded",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "results",
+          "succeeded",
+          "failed"
+        ],
+        "title": "RecycleBulkOut",
+        "type": "object"
+      },
+      "RecycleBulkResult": {
+        "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "document",
+              "folder"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "ok"
+        ],
+        "title": "RecycleBulkResult",
+        "type": "object"
+      },
+      "RecycleDetail": {
+        "properties": {
+          "content_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Type"
+          },
+          "deleted_at": {
+            "format": "date-time",
+            "title": "Deleted At",
+            "type": "string"
+          },
+          "deleted_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserBrief"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "deletion_source": {
+            "description": "trash = moved to the trash; user_permanent = the user chose 'delete permanently'.",
+            "enum": [
+              "trash",
+              "user_permanent"
+            ],
+            "title": "Deletion Source",
+            "type": "string"
+          },
+          "documents": {
+            "title": "Documents",
+            "type": "integer"
+          },
+          "folders": {
+            "title": "Folders",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "item_count": {
+            "default": 0,
+            "description": "Documents inside (folders only).",
+            "title": "Item Count",
+            "type": "integer"
+          },
+          "kind": {
+            "enum": [
+              "document",
+              "folder"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "original_location_available": {
+            "description": "False when the original parent folder is gone or itself in the trash.",
+            "title": "Original Location Available",
+            "type": "boolean"
+          },
+          "original_path": {
+            "description": "Where it lived (folder path, never a storage URL).",
+            "title": "Original Path",
+            "type": "string"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserBrief"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "permanent_requested_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Permanent Requested At"
+          },
+          "permanent_requested_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserBrief"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "protections": {
+            "items": {
+              "$ref": "#/components/schemas/ProtectionBrief"
+            },
+            "title": "Protections",
+            "type": "array"
+          },
+          "recovery_status": {
+            "description": "protected: a legal hold or retention rule currently blocks permanent deletion.",
+            "enum": [
+              "recoverable",
+              "protected"
+            ],
+            "title": "Recovery Status",
+            "type": "string"
+          },
+          "size_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size Bytes"
+          },
+          "versions": {
+            "title": "Versions",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "name",
+          "original_path",
+          "deleted_at",
+          "deletion_source",
+          "recovery_status",
+          "original_location_available",
+          "documents",
+          "folders",
+          "versions",
+          "protections"
+        ],
+        "title": "RecycleDetail",
+        "type": "object"
+      },
+      "RecycleItem": {
+        "properties": {
+          "content_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Type"
+          },
+          "deleted_at": {
+            "format": "date-time",
+            "title": "Deleted At",
+            "type": "string"
+          },
+          "deleted_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserBrief"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "deletion_source": {
+            "description": "trash = moved to the trash; user_permanent = the user chose 'delete permanently'.",
+            "enum": [
+              "trash",
+              "user_permanent"
+            ],
+            "title": "Deletion Source",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "item_count": {
+            "default": 0,
+            "description": "Documents inside (folders only).",
+            "title": "Item Count",
+            "type": "integer"
+          },
+          "kind": {
+            "enum": [
+              "document",
+              "folder"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "original_location_available": {
+            "description": "False when the original parent folder is gone or itself in the trash.",
+            "title": "Original Location Available",
+            "type": "boolean"
+          },
+          "original_path": {
+            "description": "Where it lived (folder path, never a storage URL).",
+            "title": "Original Path",
+            "type": "string"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserBrief"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "permanent_requested_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Permanent Requested At"
+          },
+          "recovery_status": {
+            "description": "protected: a legal hold or retention rule currently blocks permanent deletion.",
+            "enum": [
+              "recoverable",
+              "protected"
+            ],
+            "title": "Recovery Status",
+            "type": "string"
+          },
+          "size_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size Bytes"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "name",
+          "original_path",
+          "deleted_at",
+          "deletion_source",
+          "recovery_status",
+          "original_location_available"
+        ],
+        "title": "RecycleItem",
+        "type": "object"
+      },
+      "RecycleRef": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "document",
+              "folder"
+            ],
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "id"
+        ],
+        "title": "RecycleRef",
+        "type": "object"
+      },
       "ReleaseHoldIn": {
         "properties": {
           "reason": {
@@ -8485,6 +10513,73 @@
           "denied_attempts"
         ],
         "title": "ReportSummaryOut",
+        "type": "object"
+      },
+      "RestoreIn": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RestoreItem"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "RestoreIn",
+        "type": "object"
+      },
+      "RestoreItem": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "document",
+              "folder"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "new_name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Rename on restore (name conflicts).",
+            "title": "New Name"
+          },
+          "target_folder_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Restore here instead of the original location.",
+            "title": "Target Folder Id"
+          }
+        },
+        "required": [
+          "kind",
+          "id"
+        ],
+        "title": "RestoreItem",
         "type": "object"
       },
       "RestoreRequest": {
@@ -8643,6 +10738,160 @@
         "title": "RetentionPolicyUpdate",
         "type": "object"
       },
+      "RevisionDiff": {
+        "properties": {
+          "changes": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Changes",
+            "type": "array"
+          },
+          "from_revision": {
+            "title": "From Revision",
+            "type": "integer"
+          },
+          "to_revision": {
+            "title": "To Revision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "from_revision",
+          "to_revision",
+          "changes"
+        ],
+        "title": "RevisionDiff",
+        "type": "object"
+      },
+      "RevisionOut": {
+        "properties": {
+          "change_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change Reason"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "document": {
+            "additionalProperties": true,
+            "title": "Document",
+            "type": "object"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          },
+          "published_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published By"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "draft",
+              "validated",
+              "published",
+              "superseded"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "validated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Validated At"
+          }
+        },
+        "required": [
+          "id",
+          "revision",
+          "status",
+          "document",
+          "change_reason",
+          "created_by",
+          "created_at",
+          "validated_at",
+          "published_by",
+          "published_at"
+        ],
+        "title": "RevisionOut",
+        "type": "object"
+      },
+      "RollbackIn": {
+        "properties": {
+          "change_reason": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Change Reason",
+            "type": "string"
+          },
+          "to_revision": {
+            "minimum": 1.0,
+            "title": "To Revision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "to_revision",
+          "change_reason"
+        ],
+        "title": "RollbackIn",
+        "type": "object"
+      },
       "SearchResult": {
         "properties": {
           "breadcrumb": {
@@ -8716,7 +10965,13 @@
                 "comment",
                 "export",
                 "sync",
-                "administer"
+                "administer",
+                "create_folder",
+                "upload",
+                "create_file",
+                "view_versions",
+                "restore_version",
+                "lock"
               ],
               "type": "string"
             },
@@ -8795,7 +11050,13 @@
                 "comment",
                 "export",
                 "sync",
-                "administer"
+                "administer",
+                "create_folder",
+                "upload",
+                "create_file",
+                "view_versions",
+                "restore_version",
+                "lock"
               ],
               "type": "string"
             },
@@ -9000,7 +11261,13 @@
                 "comment",
                 "export",
                 "sync",
-                "administer"
+                "administer",
+                "create_folder",
+                "upload",
+                "create_file",
+                "view_versions",
+                "restore_version",
+                "lock"
               ],
               "type": "string"
             },
@@ -9350,6 +11617,34 @@
         "title": "SharesSummary",
         "type": "object"
       },
+      "SignRequestIn": {
+        "properties": {
+          "agreed": {
+            "description": "The signer ticked the consent statement.",
+            "title": "Agreed",
+            "type": "boolean"
+          },
+          "statement_version": {
+            "description": "Version of the statement shown to the signer.",
+            "maxLength": 40,
+            "title": "Statement Version",
+            "type": "string"
+          },
+          "typed_name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Typed Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agreed",
+          "statement_version",
+          "typed_name"
+        ],
+        "title": "SignRequestIn",
+        "type": "object"
+      },
       "SignatureArtifactOut": {
         "properties": {
           "created_at": {
@@ -9401,6 +11696,12 @@
           "available": {
             "description": "A provider is configured on this deployment.",
             "title": "Available",
+            "type": "boolean"
+          },
+          "builtin_available": {
+            "default": true,
+            "description": "Built-in typed-name consent is available (internal signers, any file type).",
+            "title": "Builtin Available",
             "type": "boolean"
           },
           "enabled": {
@@ -9467,12 +11768,32 @@
             ],
             "title": "Message"
           },
+          "placement": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlacementIn"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Signature box for the external provider (other signers' boxes are stacked below it)."
+          },
+          "provider": {
+            "default": "default",
+            "description": "default = the configured external provider (PDF only); builtin = typed-name consent inside the DMS (internal signers, any file type).",
+            "enum": [
+              "default",
+              "builtin"
+            ],
+            "title": "Provider",
+            "type": "string"
+          },
           "signers": {
             "items": {
               "$ref": "#/components/schemas/SignerIn"
             },
             "maxItems": 10,
-            "minItems": 1,
             "title": "Signers",
             "type": "array"
           },
@@ -9489,9 +11810,6 @@
             "title": "Title"
           }
         },
-        "required": [
-          "signers"
-        ],
         "title": "SignatureRequestIn",
         "type": "object"
       },
@@ -9580,6 +11898,16 @@
             "title": "My Signing Available",
             "type": "boolean"
           },
+          "placement": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlacementIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "provider": {
             "title": "Provider",
             "type": "string"
@@ -9643,6 +11971,24 @@
         "title": "SignatureRequestOut",
         "type": "object"
       },
+      "SignatureStatementOut": {
+        "properties": {
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "text"
+        ],
+        "title": "SignatureStatementOut",
+        "type": "object"
+      },
       "SignerIn": {
         "properties": {
           "email": {
@@ -9680,9 +12026,24 @@
             "title": "Internal",
             "type": "boolean"
           },
+          "is_super_signer": {
+            "default": false,
+            "title": "Is Super Signer",
+            "type": "boolean"
+          },
+          "level": {
+            "default": 1,
+            "title": "Level",
+            "type": "integer"
+          },
           "name": {
             "title": "Name",
             "type": "string"
+          },
+          "optional": {
+            "default": false,
+            "title": "Optional",
+            "type": "boolean"
           },
           "signed_at": {
             "anyOf": [
@@ -9700,10 +12061,18 @@
             "enum": [
               "pending",
               "signed",
-              "declined"
+              "declined",
+              "cancelled",
+              "bypassed"
             ],
             "title": "Status",
             "type": "string"
+          },
+          "waiting": {
+            "default": false,
+            "description": "Pending, but an earlier signing level has not finished yet.",
+            "title": "Waiting",
+            "type": "boolean"
           }
         },
         "required": [
@@ -9728,6 +12097,146 @@
           "url"
         ],
         "title": "SigningSessionOut",
+        "type": "object"
+      },
+      "SimulationIn": {
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "draft_policy_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Draft Policy Id"
+          },
+          "resource_id": {
+            "format": "uuid",
+            "title": "Resource Id",
+            "type": "string"
+          },
+          "resource_type": {
+            "enum": [
+              "document",
+              "folder"
+            ],
+            "title": "Resource Type",
+            "type": "string"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "resource_type",
+          "resource_id",
+          "action"
+        ],
+        "title": "SimulationIn",
+        "type": "object"
+      },
+      "SimulationOut": {
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "holds_permission": {
+            "title": "Holds Permission",
+            "type": "boolean"
+          },
+          "matched": {
+            "items": {
+              "$ref": "#/components/schemas/MatchedPolicy"
+            },
+            "title": "Matched",
+            "type": "array"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "observed_only": {
+            "items": {
+              "$ref": "#/components/schemas/MatchedPolicy"
+            },
+            "title": "Observed Only",
+            "type": "array"
+          },
+          "outcome": {
+            "enum": [
+              "allow",
+              "deny",
+              "require_approval"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "resource_id": {
+            "format": "uuid",
+            "title": "Resource Id",
+            "type": "string"
+          },
+          "resource_name": {
+            "title": "Resource Name",
+            "type": "string"
+          },
+          "resource_type": {
+            "enum": [
+              "document",
+              "folder"
+            ],
+            "title": "Resource Type",
+            "type": "string"
+          },
+          "simulated": {
+            "const": true,
+            "default": true,
+            "title": "Simulated",
+            "type": "boolean"
+          },
+          "user_email": {
+            "title": "User Email",
+            "type": "string"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "user_email",
+          "resource_type",
+          "resource_id",
+          "resource_name",
+          "action",
+          "holds_permission",
+          "outcome",
+          "reason",
+          "matched",
+          "observed_only",
+          "notes"
+        ],
+        "title": "SimulationOut",
         "type": "object"
       },
       "SnapshotIn": {
@@ -9941,6 +12450,55 @@
         "title": "StepStatusOut",
         "type": "object"
       },
+      "StorageCheckOut": {
+        "properties": {
+          "checked": {
+            "title": "Checked",
+            "type": "integer"
+          },
+          "errors": {
+            "title": "Errors",
+            "type": "integer"
+          },
+          "missing": {
+            "items": {
+              "$ref": "#/components/schemas/MissingObject"
+            },
+            "title": "Missing",
+            "type": "array"
+          },
+          "next_offset": {
+            "title": "Next Offset",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "checked",
+          "missing",
+          "errors",
+          "next_offset"
+        ],
+        "title": "StorageCheckOut",
+        "type": "object"
+      },
+      "SubmitForApprovalIn": {
+        "properties": {
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "title": "SubmitForApprovalIn",
+        "type": "object"
+      },
       "SyncRequestIn": {
         "properties": {
           "dry_run": {
@@ -10120,6 +12678,11 @@
             "title": "Id",
             "type": "string"
           },
+          "is_super_approver": {
+            "default": false,
+            "title": "Is Super Approver",
+            "type": "boolean"
+          },
           "note": {
             "anyOf": [
               {
@@ -10130,6 +12693,11 @@
               }
             ],
             "title": "Note"
+          },
+          "optional": {
+            "default": false,
+            "title": "Optional",
+            "type": "boolean"
           },
           "overdue": {
             "title": "Overdue",
@@ -10249,7 +12817,13 @@
                 "comment",
                 "export",
                 "sync",
-                "administer"
+                "administer",
+                "create_folder",
+                "upload",
+                "create_file",
+                "view_versions",
+                "restore_version",
+                "lock"
               ],
               "type": "string"
             },
@@ -10492,7 +13066,13 @@
                 "comment",
                 "export",
                 "sync",
-                "administer"
+                "administer",
+                "create_folder",
+                "upload",
+                "create_file",
+                "view_versions",
+                "restore_version",
+                "lock"
               ],
               "type": "string"
             },
@@ -10637,6 +13217,16 @@
             "maxLength": 255,
             "minLength": 1,
             "title": "Filename",
+            "type": "string"
+          },
+          "intent": {
+            "default": "upload",
+            "description": "\"create_file\" needs the Create File right; \"upload\" needs the Upload right.",
+            "enum": [
+              "upload",
+              "create_file"
+            ],
+            "title": "Intent",
             "type": "string"
           },
           "sha256": {
@@ -10847,6 +13437,36 @@
           "organization_status"
         ],
         "title": "UsageOut",
+        "type": "object"
+      },
+      "UserBrief": {
+        "properties": {
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "email"
+        ],
+        "title": "UserBrief",
         "type": "object"
       },
       "UserGroupsPut": {
@@ -16986,6 +19606,422 @@
         ]
       }
     },
+    "/api/v1/admin/ops/dead-events": {
+      "get": {
+        "operationId": "dead_events_api_v1_admin_ops_dead_events_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DeadEventOut"
+                  },
+                  "title": "Response Dead Events Api V1 Admin Ops Dead Events Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Background events that gave up",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/api/v1/admin/ops/dead-events/{event_id}/replay": {
+      "post": {
+        "operationId": "replay_dead_event_api_v1_admin_ops_dead_events__event_id__replay_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "event_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Event Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeadEventOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Make a dead event claimable again (handlers are idempotent)",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/api/v1/admin/ops/storage-check": {
+      "get": {
+        "operationId": "storage_check_api_v1_admin_ops_storage_check_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageCheckOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Check that stored versions still have their objects (read-only, bounded batch)",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/api/v1/admin/permissions/access": {
+      "get": {
+        "operationId": "org_access_api_v1_admin_permissions_access_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "enum": [
+                "all",
+                "grant",
+                "share"
+              ],
+              "title": "Source",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "expiring_within_days",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 365,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Expiring Within Days"
+            }
+          },
+          {
+            "in": "query",
+            "name": "user_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "User Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "group_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Group Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_AccessEntry_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Organization-wide live grants and shares (administrators)",
+        "tags": [
+          "permissions"
+        ]
+      }
+    },
     "/api/v1/admin/policies/defaults": {
       "get": {
         "operationId": "policy_defaults_api_v1_admin_policies_defaults_get",
@@ -17191,6 +20227,1239 @@
         ]
       }
     },
+    "/api/v1/admin/policy-rules": {
+      "get": {
+        "operationId": "list_policies_api_v1_admin_policy_rules_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "draft",
+                    "published",
+                    "disabled",
+                    "archived"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_PolicyOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Rule policies of the organization",
+        "tags": [
+          "policy-engine"
+        ]
+      },
+      "post": {
+        "operationId": "create_policy_api_v1_admin_policy_rules_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create a draft policy",
+        "tags": [
+          "policy-engine"
+        ]
+      }
+    },
+    "/api/v1/admin/policy-rules/grammar": {
+      "get": {
+        "operationId": "policy_grammar_api_v1_admin_policy_rules_grammar_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Grammar"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "The attributes, operators, actions and effects a policy may use (single source of truth)",
+        "tags": [
+          "policy-engine"
+        ]
+      }
+    },
+    "/api/v1/admin/policy-rules/simulate": {
+      "post": {
+        "operationId": "simulate_decision_api_v1_admin_policy_rules_simulate_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimulationIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimulationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Simulate a decision for a user, resource and action (never executes anything)",
+        "tags": [
+          "policy-engine"
+        ]
+      }
+    },
+    "/api/v1/admin/policy-rules/templates": {
+      "get": {
+        "operationId": "policy_templates_api_v1_admin_policy_rules_templates_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PolicyTemplate"
+                  },
+                  "title": "Response Policy Templates Api V1 Admin Policy Rules Templates Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Predefined policy library (instantiate as a DRAFT; nothing auto-publishes)",
+        "tags": [
+          "policy-engine"
+        ]
+      }
+    },
+    "/api/v1/admin/policy-rules/{policy_id}": {
+      "get": {
+        "operationId": "get_policy_api_v1_admin_policy_rules__policy_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "policy_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Policy Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "A policy with all its revisions",
+        "tags": [
+          "policy-engine"
+        ]
+      },
+      "patch": {
+        "operationId": "update_policy_api_v1_admin_policy_rules__policy_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "policy_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Policy Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Edit the draft (or open a new one)",
+        "tags": [
+          "policy-engine"
+        ]
+      }
+    },
+    "/api/v1/admin/policy-rules/{policy_id}/archive": {
+      "post": {
+        "operationId": "archive_policy_api_v1_admin_policy_rules__policy_id__archive_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "policy_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Policy Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Archive an unused policy",
+        "tags": [
+          "policy-engine"
+        ]
+      }
+    },
+    "/api/v1/admin/policy-rules/{policy_id}/compare": {
+      "get": {
+        "operationId": "compare_revisions_api_v1_admin_policy_rules__policy_id__compare_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "policy_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Policy Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "a",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "A",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "b",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "B",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevisionDiff"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Compare two revisions",
+        "tags": [
+          "policy-engine"
+        ]
+      }
+    },
+    "/api/v1/admin/policy-rules/{policy_id}/disable": {
+      "post": {
+        "operationId": "disable_policy_api_v1_admin_policy_rules__policy_id__disable_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "policy_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Policy Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "reason",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Reason"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Stop enforcing",
+        "tags": [
+          "policy-engine"
+        ]
+      }
+    },
+    "/api/v1/admin/policy-rules/{policy_id}/enable": {
+      "post": {
+        "operationId": "enable_policy_api_v1_admin_policy_rules__policy_id__enable_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "policy_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Policy Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Re-enable a disabled policy",
+        "tags": [
+          "policy-engine"
+        ]
+      }
+    },
+    "/api/v1/admin/policy-rules/{policy_id}/mode": {
+      "put": {
+        "operationId": "set_mode_api_v1_admin_policy_rules__policy_id__mode_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "policy_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Policy Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Enforce or only observe",
+        "tags": [
+          "policy-engine"
+        ]
+      }
+    },
+    "/api/v1/admin/policy-rules/{policy_id}/publish": {
+      "post": {
+        "operationId": "publish_policy_api_v1_admin_policy_rules__policy_id__publish_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "policy_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Policy Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Publish the validated draft",
+        "tags": [
+          "policy-engine"
+        ]
+      }
+    },
+    "/api/v1/admin/policy-rules/{policy_id}/rollback": {
+      "post": {
+        "operationId": "rollback_policy_api_v1_admin_policy_rules__policy_id__rollback_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "policy_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Policy Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RollbackIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "New draft copied from an old revision",
+        "tags": [
+          "policy-engine"
+        ]
+      }
+    },
+    "/api/v1/admin/policy-rules/{policy_id}/validate": {
+      "post": {
+        "operationId": "validate_policy_api_v1_admin_policy_rules__policy_id__validate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "policy_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Policy Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyValidationReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Validate the draft",
+        "tags": [
+          "policy-engine"
+        ]
+      }
+    },
     "/api/v1/admin/quarantine": {
       "get": {
         "operationId": "quarantine_api_v1_admin_quarantine_get",
@@ -17276,6 +21545,441 @@
         "summary": "Versions blocked by security checks (admin)",
         "tags": [
           "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/recycle-bin": {
+      "get": {
+        "operationId": "list_recycle_bin_api_v1_admin_recycle_bin_get",
+        "parameters": [
+          {
+            "description": "Name contains.",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Name contains.",
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "deleted_by",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Deleted By"
+            }
+          },
+          {
+            "in": "query",
+            "name": "date_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "date_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date To"
+            }
+          },
+          {
+            "description": "Extension, or 'folder'.",
+            "in": "query",
+            "name": "file_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 20,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Extension, or 'folder'.",
+              "title": "File Type"
+            }
+          },
+          {
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "trash",
+                    "user_permanent"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_RecycleItem_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Deleted files and folders (administrators)",
+        "tags": [
+          "recycle-bin"
+        ]
+      }
+    },
+    "/api/v1/admin/recycle-bin/purge": {
+      "post": {
+        "operationId": "purge_items_api_v1_admin_recycle_bin_purge_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurgeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecycleBulkOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Permanently delete items (irreversible; blocked by legal holds and retention)",
+        "tags": [
+          "recycle-bin"
+        ]
+      }
+    },
+    "/api/v1/admin/recycle-bin/restore": {
+      "post": {
+        "operationId": "restore_items_api_v1_admin_recycle_bin_restore_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestoreIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecycleBulkOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Restore items (original location, or a chosen folder / new name)",
+        "tags": [
+          "recycle-bin"
+        ]
+      }
+    },
+    "/api/v1/admin/recycle-bin/{kind}/{resource_id}": {
+      "get": {
+        "operationId": "recycle_detail_api_v1_admin_recycle_bin__kind___resource_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "enum": [
+                "document",
+                "folder"
+              ],
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "resource_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Resource Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecycleDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Deletion details of one item",
+        "tags": [
+          "recycle-bin"
         ]
       }
     },
@@ -23818,6 +28522,89 @@
         ]
       }
     },
+    "/api/v1/documents/{document_id}/signature-preview-pdf": {
+      "get": {
+        "operationId": "signature_preview_pdf_api_v1_documents__document_id__signature_preview_pdf_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Document Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "The exact PDF that would be sent for signing (converted if needed) - to choose where the signature goes",
+        "tags": [
+          "signatures"
+        ]
+      }
+    },
     "/api/v1/documents/{document_id}/signature-requests": {
       "get": {
         "operationId": "document_requests_api_v1_documents__document_id__signature_requests_get",
@@ -24151,6 +28938,101 @@
         "summary": "Star a document",
         "tags": [
           "documents"
+        ]
+      }
+    },
+    "/api/v1/documents/{document_id}/submit-for-approval": {
+      "post": {
+        "operationId": "submit_for_approval_api_v1_documents__document_id__submit_for_approval_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Document Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitForApprovalIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/app__schemas__workflows__RunOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Submit the file to its folder's approval chain (no approver to choose)",
+        "tags": [
+          "workflows"
         ]
       }
     },
@@ -25513,6 +30395,184 @@
         ]
       }
     },
+    "/api/v1/folders/{folder_id}/approval-chain": {
+      "get": {
+        "operationId": "get_approval_chain_api_v1_folders__folder_id__approval_chain_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "folder_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Folder Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalChainOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "The folder's approval chain (levels of approvers); empty = pick a workflow manually",
+        "tags": [
+          "workflows"
+        ]
+      },
+      "put": {
+        "operationId": "set_approval_chain_api_v1_folders__folder_id__approval_chain_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "folder_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Folder Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalChainIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalChainOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Replace the folder's approval chain (administrators); an empty chain removes it",
+        "tags": [
+          "workflows"
+        ]
+      }
+    },
     "/api/v1/folders/{folder_id}/breadcrumb": {
       "get": {
         "operationId": "get_breadcrumb_api_v1_folders__folder_id__breadcrumb_get",
@@ -26495,6 +31555,184 @@
         ]
       }
     },
+    "/api/v1/folders/{folder_id}/lock": {
+      "delete": {
+        "operationId": "unlock_folder_api_v1_folders__folder_id__lock_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "folder_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Folder Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Unlock a folder; administrators may break a lock",
+        "tags": [
+          "file manager"
+        ]
+      },
+      "post": {
+        "operationId": "lock_folder_api_v1_folders__folder_id__lock_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "folder_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Folder Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/LockIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LockOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Lock a folder (others cannot rename, move or delete it)",
+        "tags": [
+          "file manager"
+        ]
+      }
+    },
     "/api/v1/folders/{folder_id}/permissions": {
       "get": {
         "operationId": "folder_permissions_api_v1_folders__folder_id__permissions_get",
@@ -27219,6 +32457,184 @@
         ]
       }
     },
+    "/api/v1/folders/{folder_id}/signature-chain": {
+      "get": {
+        "operationId": "get_signature_chain_api_v1_folders__folder_id__signature_chain_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "folder_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Folder Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChainOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "The folder's signature chain (levels of signers); empty = manual signer selection",
+        "tags": [
+          "signatures"
+        ]
+      },
+      "put": {
+        "operationId": "set_signature_chain_api_v1_folders__folder_id__signature_chain_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "folder_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Folder Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChainIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChainOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Replace the folder's signature chain (administrators); an empty chain removes it",
+        "tags": [
+          "signatures"
+        ]
+      }
+    },
     "/api/v1/folders/{folder_id}/uploads": {
       "post": {
         "operationId": "initiate_upload_api_v1_folders__folder_id__uploads_post",
@@ -27647,6 +33063,204 @@
           }
         },
         "summary": "Current user, memberships and pending invitations",
+        "tags": [
+          "identity"
+        ]
+      }
+    },
+    "/api/v1/me/access": {
+      "get": {
+        "operationId": "my_access_api_v1_me_access_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "expiring_within_days",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 365,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Expiring Within Days"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_AccessEntry_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Access granted to me (directly, via my groups, or organization-wide)",
+        "tags": [
+          "permissions"
+        ]
+      }
+    },
+    "/api/v1/me/activity": {
+      "get": {
+        "operationId": "my_activity_api_v1_me_activity_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MyActivityItem"
+                  },
+                  "title": "Response My Activity Api V1 Me Activity Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "What I did recently (my own activity feed)",
         "tags": [
           "identity"
         ]
@@ -29721,6 +35335,205 @@
         ]
       }
     },
+    "/api/v1/resources/{kind}/{resource_id}/effective-access": {
+      "get": {
+        "operationId": "effective_access_api_v1_resources__kind___resource_id__effective_access_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "enum": [
+                "document",
+                "folder"
+              ],
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "resource_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Resource Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EffectiveAccessOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "My effective actions on a file or folder",
+        "tags": [
+          "permissions"
+        ]
+      }
+    },
+    "/api/v1/resources/{kind}/{resource_id}/permission-history": {
+      "get": {
+        "operationId": "permission_history_api_v1_resources__kind___resource_id__permission_history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "enum": [
+                "document",
+                "folder"
+              ],
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "resource_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Resource Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_AuditEventOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Permission, share and request events for one item (managers and administrators)",
+        "tags": [
+          "permissions"
+        ]
+      }
+    },
     "/api/v1/search": {
       "get": {
         "operationId": "search_api_v1_search_get",
@@ -31498,6 +37311,19 @@
             }
           },
           {
+            "description": "active = still waiting; finished = history (signed, declined, cancelled, ...)",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "default": "any",
+              "description": "active = still waiting; finished = history (signed, declined, cancelled, ...)",
+              "pattern": "^(any|active|finished)$",
+              "title": "Status",
+              "type": "string"
+            }
+          },
+          {
             "in": "query",
             "name": "limit",
             "required": false,
@@ -31754,6 +37580,177 @@
         ]
       }
     },
+    "/api/v1/signature-requests/{request_id}/decline": {
+      "post": {
+        "operationId": "decline_request_api_v1_signature_requests__request_id__decline_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "request_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Request Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeclineIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Built-in signing: decline (a separate, final operation)",
+        "tags": [
+          "signatures"
+        ]
+      }
+    },
+    "/api/v1/signature-requests/{request_id}/document": {
+      "get": {
+        "operationId": "signing_document_api_v1_signature_requests__request_id__document_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "request_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Request Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Built-in signing: download the exact version to be signed (signers only)",
+        "tags": [
+          "signatures"
+        ]
+      }
+    },
     "/api/v1/signature-requests/{request_id}/refresh": {
       "post": {
         "operationId": "refresh_request_api_v1_signature_requests__request_id__refresh_post",
@@ -31839,6 +37836,94 @@
         ]
       }
     },
+    "/api/v1/signature-requests/{request_id}/sign": {
+      "post": {
+        "operationId": "sign_request_api_v1_signature_requests__request_id__sign_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "request_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Request Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignRequestIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Built-in signing: agree to the statement and sign (the assigned signer only)",
+        "tags": [
+          "signatures"
+        ]
+      }
+    },
     "/api/v1/signature-requests/{request_id}/signing-session": {
       "post": {
         "operationId": "signing_session_api_v1_signature_requests__request_id__signing_session_post",
@@ -31919,6 +38004,81 @@
           }
         },
         "summary": "Open the signing page (embed in an iframe or new tab) - only for the pending signer",
+        "tags": [
+          "signatures"
+        ]
+      }
+    },
+    "/api/v1/signature-statement": {
+      "get": {
+        "operationId": "signature_statement_api_v1_signature_statement_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-organization-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignatureStatementOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "The consent statement shown to built-in signers (versioned)",
         "tags": [
           "signatures"
         ]
@@ -32106,6 +38266,25 @@
               "minimum": 0,
               "title": "Offset",
               "type": "integer"
+            }
+          },
+          {
+            "description": "Only items whose name contains this.",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only items whose name contains this.",
+              "title": "Q"
             }
           },
           {

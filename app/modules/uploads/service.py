@@ -161,6 +161,11 @@ def _enforce_account_limits(db: Session, p: Principal, size_bytes: int) -> None:
         )
 
 
+def _folder_right(intent: str) -> Action:
+    """What a folder must allow for a NEW file: Create File for "create a file", Upload otherwise."""
+    return Action.CREATE_FILE if intent == "create_file" else Action.UPLOAD
+
+
 def initiate(
     db: Session,
     authz: AuthorizationService,
@@ -173,6 +178,7 @@ def initiate(
     sha256: str | None,
     expected_latest_version: int | None,
     idempotency_key: str | None,
+    intent: str = "upload",
 ) -> UploadSession:
     p = authz.principal
     settings = get_settings()
@@ -219,7 +225,7 @@ def initiate(
         target_folder = doc.folder_id
     else:
         assert folder_id is not None
-        folder = authz.require_folder(folder_id, Action.CREATE_CHILD)
+        folder = authz.require_folder(folder_id, _folder_right(intent))
         ensure_name_free(db, p.organization_id, folder.id, name)
         target_folder = folder.id
     share_quota.check(db, p, target_folder, size_bytes)
@@ -244,6 +250,7 @@ def initiate(
         folder_id=target_folder,
         document_id=document_id,
         expected_latest_version=expected_latest_version,
+        intent=intent if intent in ("upload", "create_file") else "upload",
         created_by=p.user_id,
         filename=name,
         content_type=normalize_content_type(content_type),
@@ -353,7 +360,7 @@ def prepare_content(
     if session.document_id:
         authz.require_document(session.document_id, Action.UPLOAD_VERSION)
     else:
-        authz.require_folder(session.folder_id, Action.CREATE_CHILD)
+        authz.require_folder(session.folder_id, _folder_right(session.intent))
     db.rollback()  # release the connection while the (possibly slow) body is streamed
     return session
 
@@ -448,7 +455,7 @@ def finalize(
     if session.document_id:
         authz.require_document(session.document_id, Action.UPLOAD_VERSION)
     else:
-        authz.require_folder(session.folder_id, Action.CREATE_CHILD)
+        authz.require_folder(session.folder_id, _folder_right(session.intent))
 
     try:
         if session.document_id:

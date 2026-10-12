@@ -8,6 +8,7 @@ from typing import Any
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -25,7 +26,8 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.db.base import Base, check_in, created_at_col, uuid_pk
 
 REQUEST_STATES = ["creating", "sent", "completed", "declined", "cancelled", "expired", "failed"]
-RECIPIENT_STATES = ["pending", "signed", "declined"]
+# cancelled: a required signer at the same level declined; bypassed: a super signer fast-forwarded
+RECIPIENT_STATES = ["pending", "signed", "declined", "cancelled", "bypassed"]
 EVENT_STATES = ["received", "processed", "ignored", "failed"]
 
 
@@ -39,6 +41,10 @@ class SignatureRequest(Base):
     document_id: Mapped[uuid.UUID] = mapped_column()
     # the EXACT immutable version that is sent for signature
     source_version_id: Mapped[uuid.UUID] = mapped_column()
+    # checksum of that version at request time (versions are immutable; this proves which bytes)
+    source_sha256: Mapped[str | None] = mapped_column(String(64))
+    # where the signature box was placed on the signing PDF (percent of the page); null = default spot
+    placement: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     requested_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("dms.users.id", ondelete="RESTRICT"))
     provider: Mapped[str] = mapped_column(String(32))
     provider_request_id: Mapped[str | None] = mapped_column(String(200))
@@ -72,6 +78,14 @@ class SignatureRequest(Base):
             unique=True,
             postgresql_where=text("provider_request_id IS NOT NULL"),
         ),
+        # at most one in-flight request per document (the service also checks, under a document lock)
+        Index(
+            "uq_signature_requests_one_active",
+            "organization_id",
+            "document_id",
+            unique=True,
+            postgresql_where=text("state IN ('creating', 'sent')"),
+        ),
         Index("ix_signature_requests_org_state", "organization_id", "state"),
         Index("ix_signature_requests_document", "organization_id", "document_id"),
     )
@@ -89,11 +103,19 @@ class SignatureRecipient(Base):
         ForeignKey("dms.users.id", ondelete="SET NULL")
     )  # set for internal signers
     order_index: Mapped[int] = mapped_column(Integer, default=0)
+    # signature chain (copied from the folder chain when the request is created, so later edits of the
+    # chain never affect a running request): sequential levels, parallel signers inside a level
+    level: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+    optional: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    is_super_signer: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     provider_recipient_id: Mapped[str | None] = mapped_column(String(200))
     # Secret-equivalent link (contains the signer's token). Only ever returned to that signer.
     signing_url: Mapped[str | None] = mapped_column(String(1000))
     status: Mapped[str] = mapped_column(String(16), default="pending")
     signed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # built-in signing: consent/evidence record and the decline reason (never shown to other users)
+    evidence: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    decline_reason: Mapped[str | None] = mapped_column(String(500))
     created_at: Mapped[datetime] = created_at_col()
 
     __table_args__ = (
@@ -162,4 +184,34 @@ class SignedArtifact(Base):
             name="fk_signed_artifacts_version_org",
         ),
         UniqueConstraint("request_id", name="uq_signed_artifacts_request"),
+    )
+
+
+class SignatureChainStep(Base):
+    """One signer in a folder's signature chain. ``level`` is 1-based; levels run in order."""
+
+    __tablename__ = "signature_chain_steps"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    organization_id: Mapped[uuid.UUID] = mapped_column()
+    folder_id: Mapped[uuid.UUID] = mapped_column()
+    level: Mapped[int] = mapped_column(Integer)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("dms.users.id", ondelete="CASCADE"))
+    optional: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    is_super_signer: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("dms.users.id", ondelete="SET NULL")
+    )
+    created_at: Mapped[datetime] = created_at_col()
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["folder_id", "organization_id"],
+            ["dms.folders.id", "dms.folders.organization_id"],
+            ondelete="CASCADE",
+            name="fk_signature_chain_steps_folder_org",
+        ),
+        UniqueConstraint("folder_id", "level", "user_id", name="uq_signature_chain_steps_signer"),
+        CheckConstraint("level >= 1", name="level_positive"),
+        Index("ix_signature_chain_steps_folder", "organization_id", "folder_id", "level"),
     )

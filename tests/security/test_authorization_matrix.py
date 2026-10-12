@@ -214,16 +214,20 @@ def test_folder_share_covers_subtree_only(tree):  # noqa: ANN001
     ]
 
 
-def test_owner_of_a_document_controls_it_but_not_its_folder(tree):  # noqa: ANN001
+def test_uploader_gets_no_rights_beyond_the_grant_and_none_on_the_folder(tree):  # noqa: ANN001
     t = tree
     admin, world = t["admin"], t["world"]
     m = world.user(admin, "member", label="uploader")
     grant(admin, t["team"], m, ["create_child", "upload_version"])
     doc = world.available_doc(m, t["team"], "mine.pdf", PDF + b"mine")
     assert m.get(f"/api/v1/documents/{doc}").status_code == 200
-    assert m.patch(f"/api/v1/documents/{doc}", json={"name": "renamed.pdf"}).status_code == 200
+    # uploading a file does not escalate: renaming and deleting need their own rights
+    assert m.patch(f"/api/v1/documents/{doc}", json={"name": "renamed.pdf"}).status_code == 403
+    assert m.delete(f"/api/v1/documents/{doc}").status_code == 403
     assert m.patch(f"/api/v1/folders/{t['team']}", json={"name": "hacked"}).status_code == 403
     assert m.delete(f"/api/v1/folders/{t['team']}").status_code == 403
+    grant(admin, t["team"], m, ["rename", "delete"])
+    assert m.patch(f"/api/v1/documents/{doc}", json={"name": "renamed.pdf"}).status_code == 200
     assert m.delete(f"/api/v1/documents/{doc}").status_code == 204
 
 

@@ -76,3 +76,4 @@ class ProtectionOut(ApiModel):
 class PurgeOut(ApiModel):
     documents: int
     folders: int
+    retained: bool = False  # true: not erased, kept for administrators to recover

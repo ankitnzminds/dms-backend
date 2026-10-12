@@ -49,7 +49,11 @@ class TestPurge:
         assert a.delete(f"/api/v1/trash/documents/{doc}").status_code == 409
         assert a.delete(f"/api/v1/documents/{doc}").status_code == 204
         r = a.delete(f"/api/v1/trash/documents/{doc}")
-        assert r.status_code == 200 and r.json() == {"documents": 1, "folders": 0}
+        assert r.status_code == 200 and r.json() == {
+            "documents": 1,
+            "folders": 0,
+            "retained": False,
+        }
         assert a.get(f"/api/v1/documents/{doc}").status_code == 404
         assert a.get("/api/v1/trash").json()["total"] == 0
         assert bob.get("/api/v1/shares/received").json()["total"] == 0
@@ -97,7 +101,11 @@ class TestPurge:
         w.process_jobs()
         assert a.delete(f"/api/v1/folders/{top}").status_code == 204
         r = a.delete(f"/api/v1/trash/folders/{top}")
-        assert r.status_code == 200 and r.json() == {"documents": 1, "folders": 2}
+        assert r.status_code == 200 and r.json() == {
+            "documents": 1,
+            "folders": 2,
+            "retained": False,
+        }
         w.process_jobs()
         with w.db_factory() as db:
             assert (

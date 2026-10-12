@@ -58,8 +58,37 @@ class TestConfigSafety:
             download_signing_secret=SecretStr("x" * 40),
             signature_provider="none",
             ai_provider="none",
+            database_url="postgresql://u:p@db.example.com/app",
+            supabase_url="https://x.supabase.co",
         )
         assert s.is_production_like and s.cors_origins == ["https://dms.example.com"]
+
+    def test_production_requires_database_and_supabase_urls(self):
+        base = dict(
+            app_env="production",
+            auth_provider="supabase",
+            storage_provider="supabase",
+            malware_scanner="clamd",
+            cors_allowed_origins="https://dms.example.com",
+            download_signing_secret=SecretStr("x" * 40),
+            signature_provider="none",
+            ai_provider="none",
+        )
+        with pytest.raises(ValueError, match="DATABASE_URL is required"):
+            make_settings(**base, database_url="", supabase_url="https://x.supabase.co")
+        with pytest.raises(ValueError, match="SUPABASE_URL is required"):
+            make_settings(
+                **base, database_url="postgresql://u:p@db.example.com/app", supabase_url=""
+            )
+
+    def test_forgotten_app_env_with_a_remote_database_refuses_to_start(self, monkeypatch):  # noqa: ANN001
+        monkeypatch.delenv("APP_ENV", raising=False)
+        with pytest.raises(ValueError, match="APP_ENV is not set"):
+            make_settings(database_url="postgresql://u:p@db.prod.example.com:5432/app")
+        # local databases (dev, tests, unix sockets) and an explicit APP_ENV keep working
+        make_settings(database_url="postgresql://u:p@localhost/app")
+        make_settings(database_url="postgresql://postgres:@/postgres?host=/tmp/pg")
+        make_settings(database_url="postgresql://u:p@db.example.com/app", app_env="development")
 
     def test_production_rejects_fake_signature_provider_and_requires_webhook_secret(self):
         base = dict(
@@ -69,6 +98,8 @@ class TestConfigSafety:
             malware_scanner="clamd",
             cors_allowed_origins="https://dms.example.com",
             download_signing_secret=SecretStr("x" * 40),
+            database_url="postgresql://u:p@db.example.com/app",
+            supabase_url="https://x.supabase.co",
         )
         with pytest.raises(ValueError, match="SIGNATURE_PROVIDER=fake"):
             make_settings(

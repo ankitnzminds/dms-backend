@@ -844,3 +844,30 @@ class TestTeamFolders:
             == 204
         )
         assert o.get(f"{API}/team-folders").json() == []
+
+
+class TestInviteNotifications:
+    def _inbox(self, actor):  # noqa: ANN001, ANN202
+        return actor.get(f"{API}/notifications").json()["items"]
+
+    def test_invited_person_gets_an_in_app_notification_without_email(self, env):  # noqa: ANN001
+        w, o, ann, bob = env["world"], env["owner"], env["ann"], env["bob"]
+        s = share_for(o, "folder", env["alpha"])
+        assert invite(o, s["id"], ann, send_email=False).status_code == 200
+        w.process_jobs()
+        got = [n for n in self._inbox(ann) if n["type"] == "share.received"]
+        assert len(got) == 1 and "shared" in got[0]["title"]
+        assert got[0]["resource_id"] == env["alpha"]
+        # nobody else, and not the sharer
+        assert not [n for n in self._inbox(bob) if n["type"] == "share.received"]
+        assert not [n for n in self._inbox(o) if n["type"] == "share.received"]
+
+    def test_later_invites_notify_only_the_new_person(self, env):  # noqa: ANN001
+        w, o, ann, bob = env["world"], env["owner"], env["ann"], env["bob"]
+        s = share_for(o, "folder", env["alpha"])
+        invite(o, s["id"], ann)
+        w.process_jobs()
+        invite(o, s["id"], bob)
+        w.process_jobs()
+        assert len([n for n in self._inbox(ann) if n["type"] == "share.received"]) == 1
+        assert len([n for n in self._inbox(bob) if n["type"] == "share.received"]) == 1

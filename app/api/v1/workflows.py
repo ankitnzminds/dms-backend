@@ -9,14 +9,18 @@ from fastapi import APIRouter, Query, Response
 
 from app.api.deps import Authz, CurrentPrincipal, DbSession
 from app.core.errors import ErrorResponse
+from app.modules.workflows import approval_chain
 from app.modules.workflows import service as wf
 from app.schemas.common import Page
 from app.schemas.workflows import (
+    ApprovalChainIn,
+    ApprovalChainOut,
     CancelRunIn,
     DecisionIn,
     DelegateIn,
     RunOut,
     StartRunIn,
+    SubmitForApprovalIn,
     TaskOut,
     WorkflowDefinitionIn,
     WorkflowDefinitionOut,
@@ -85,6 +89,38 @@ def update_workflow(
 
 
 # ---- runs
+@router.get(
+    "/folders/{folder_id}/approval-chain",
+    response_model=ApprovalChainOut,
+    summary="The folder's approval chain (levels of approvers); empty = pick a workflow manually",
+)
+def get_approval_chain(folder_id: uuid.UUID, db: DbSession, authz: Authz) -> ApprovalChainOut:
+    return approval_chain.get_chain(db, authz, folder_id)
+
+
+@router.put(
+    "/folders/{folder_id}/approval-chain",
+    response_model=ApprovalChainOut,
+    summary="Replace the folder's approval chain (administrators); an empty chain removes it",
+)
+def set_approval_chain(
+    folder_id: uuid.UUID, body: ApprovalChainIn, db: DbSession, principal: CurrentPrincipal
+) -> ApprovalChainOut:
+    return approval_chain.set_chain(db, principal, folder_id, body)
+
+
+@router.post(
+    "/documents/{document_id}/submit-for-approval",
+    response_model=RunOut,
+    status_code=201,
+    summary="Submit the file to its folder's approval chain (no approver to choose)",
+)
+def submit_for_approval(
+    document_id: uuid.UUID, body: SubmitForApprovalIn, db: DbSession, authz: Authz
+) -> RunOut:
+    return approval_chain.submit(db, authz, document_id, body.note)
+
+
 @router.post(
     "/documents/{document_id}/workflow-runs",
     response_model=RunOut,

@@ -16,8 +16,15 @@ from app.db.enums import Action
 from app.db.models import Document, DocumentVersion, Folder
 from app.modules.audit import service as audit
 from app.modules.authorization.service import AuthorizationService, BreadcrumbSegment
+from app.modules.documents.locks import assert_folder_unlocked_for
 from app.modules.folders.common import ensure_name_free, plain_path, subtree_folder_ids
-from app.modules.items.common import document_stars, folder_favorites, lock_active, user_refs
+from app.modules.items.common import (
+    document_stars,
+    folder_favorites,
+    lock_active,
+    lock_out,
+    user_refs,
+)
 from app.modules.organizations.service import get_org, org_settings
 from app.schemas.common import BreadcrumbSegmentOut
 from app.schemas.tree import FolderOut, TrashItem, TreeItem
@@ -45,7 +52,7 @@ def folder_out(
         breadcrumb = authz.breadcrumb_for_folder(
             folder.parent_folder_id, mask_unauthorized=mask_policy(db, authz)
         )
-    refs = user_refs(db, [folder.updated_by])
+    refs = user_refs(db, [folder.updated_by, folder.locked_by])
     return FolderOut(
         id=folder.id,
         name=folder.name,
@@ -59,6 +66,7 @@ def folder_out(
         deleted_at=folder.deleted_at,
         updated_by=refs.get(folder.updated_by) if folder.updated_by else None,
         is_favorite=bool(folder_favorites(db, authz.principal.user_id, [folder.id])),
+        lock=lock_out(folder, authz.principal.user_id, refs),
         permissions=sorted(permissions),
         breadcrumb=to_breadcrumb_out(breadcrumb),
     )
@@ -163,6 +171,8 @@ def list_children(
                 starred=f.id in pinned,
                 color_tag=f.color_tag,
                 updated_by=refs.get(f.updated_by) if f.updated_by else None,
+                locked=lock_active(f),
+                locked_by_me=lock_active(f) and f.locked_by == authz.principal.user_id,
             )
         )
     for d in visible_docs:
@@ -215,7 +225,7 @@ def create_folder(
     db: Session, authz: AuthorizationService, parent_id: uuid.UUID, raw_name: str
 ) -> FolderOut:
     name = validate_name(raw_name, what="Folder name")
-    parent = authz.require_folder(parent_id, Action.CREATE_CHILD)
+    parent = authz.require_folder(parent_id, Action.CREATE_FOLDER)
     p = authz.principal
     ensure_name_free(db, p.organization_id, parent.id, name)
     folder = Folder(
@@ -265,6 +275,7 @@ def update_folder(
         raise ConflictError("The folder was modified by someone else.", code="stale_version")
     if name is None and parent_folder_id is None:
         raise ValidationFailed("Nothing to update.")
+    assert_folder_unlocked_for(db, folder, p)
 
     old_path = plain_path(db, p.organization_id, folder.id)
     orig_parent = folder.parent_folder_id
@@ -276,13 +287,34 @@ def update_folder(
         new_name = validate_name(name, what="Folder name")
     if parent_folder_id is not None and parent_folder_id != folder.parent_folder_id:
         authz.require_folder(folder.id, Action.MOVE)
-        target = authz.require_folder(parent_folder_id, Action.CREATE_CHILD)
+        target = authz.require_folder(parent_folder_id, Action.CREATE_FOLDER)
         # Cycle guard: the target must not be the folder itself or inside its subtree.
         if target.id in set(subtree_folder_ids(db, p.organization_id, folder.id)):
             raise ValidationFailed("A folder cannot be moved into itself or its own subfolder.")
         new_parent = target.id
 
     if new_name != folder.name or new_parent != folder.parent_folder_id:
+        from app.modules.governance import service as governance
+
+        if new_parent != folder.parent_folder_id:
+            assert new_parent is not None
+            governance.assert_movable(
+                db,
+                p.organization_id,
+                documents=[],
+                folders=[folder],
+                destination_id=new_parent,
+                actor_id=p.user_id,
+            )
+        else:
+            governance.assert_not_held(
+                db,
+                p.organization_id,
+                documents=[],
+                folders=[folder],
+                operation="rename",
+                actor_id=p.user_id,
+            )
         ensure_name_free(db, p.organization_id, new_parent, new_name, exclude_folder_id=folder.id)  # type: ignore[arg-type]
         folder.name = new_name
         folder.parent_folder_id = new_parent
@@ -319,6 +351,7 @@ def delete_folder(db: Session, authz: AuthorizationService, folder_id: uuid.UUID
     folder = authz.require_folder(folder_id, Action.DELETE)
     if folder.parent_folder_id is None:
         raise ForbiddenError("The root folder cannot be deleted.")
+    assert_folder_unlocked_for(db, folder, p)
 
     subtree = subtree_folder_ids(db, p.organization_id, folder.id)
     docs = list(
@@ -395,6 +428,8 @@ def restore_folder(
     folder = authz.require_folder(folder_id, Action.RESTORE, include_deleted=True)
     if folder.deleted_at is None:
         raise ConflictError("Folder is not in the trash.", code="not_deleted")
+    if folder.purge_requested_at is not None and not p.is_admin:
+        raise NotFoundError("Folder not found.")  # only the administrators' Recycle Bin restores it
     parent = db.get(Folder, folder.parent_folder_id) if folder.parent_folder_id else None
     if (
         parent is None
@@ -408,6 +443,7 @@ def restore_folder(
     ensure_name_free(db, p.organization_id, parent.id, name, exclude_folder_id=folder.id)
     batch = folder.delete_batch_id
     folder.name = name
+    folder.purge_requested_at = folder.purge_requested_by = None
     if batch is not None:
         db.execute(
             update(Folder)
@@ -442,9 +478,14 @@ def restore_folder(
 
 
 def list_trash(
-    db: Session, authz: AuthorizationService, *, limit: int, offset: int
+    db: Session,
+    authz: AuthorizationService,
+    *,
+    limit: int,
+    offset: int,
+    q: str | None = None,
 ) -> tuple[list[TrashItem], int]:
-    """Top-level trashed items (batch roots) the caller may restore."""
+    """Top-level trashed items (batch roots) the caller may restore; ``q`` filters by name."""
     p = authz.principal
     org_id = p.organization_id
 
@@ -472,8 +513,17 @@ def list_trash(
 
     fperms = authz.folder_actions([f.id for f in roots_f])
     dperms = authz.document_actions(roots_d)
-    allowed_f = [f for f in roots_f if Action.RESTORE.value in fperms.get(f.id, ())]
-    allowed_d = [d for d in roots_d if Action.RESTORE.value in dperms.get(d.id, ())]
+    # Items a user already "deleted permanently" are gone from their trash (administrators can still recover them).
+    allowed_f = [
+        f
+        for f in roots_f
+        if Action.RESTORE.value in fperms.get(f.id, ()) and f.purge_requested_at is None
+    ]
+    allowed_d = [
+        d
+        for d in roots_d
+        if Action.RESTORE.value in dperms.get(d.id, ()) and d.purge_requested_at is None
+    ]
 
     parent_ids = [f.parent_folder_id for f in allowed_f if f.parent_folder_id] + [
         d.folder_id for d in allowed_d
@@ -516,6 +566,9 @@ def list_trash(
         )
         for d in allowed_d
     ]
+    needle = (q or "").strip().casefold()
+    if needle:
+        items = [i for i in items if needle in i.name.casefold()]
     items.sort(key=lambda i: i.deleted_at, reverse=True)
     return items[offset : offset + limit], len(items)
 
@@ -544,7 +597,7 @@ def ensure_path(
 
     Idempotent. An existing folder must be visible to the caller (otherwise this would be an
     existence oracle, so it is reported as a name conflict); a document with the same name is a
-    conflict. Missing folders need CREATE_CHILD on their parent. Returns (leaf, created_count).
+    conflict. Missing folders need CREATE_FOLDER on their parent. Returns (leaf, created_count).
     """
     if not segments or len(segments) > MAX_PATH_DEPTH:
         raise ValidationFailed(f"path must have between 1 and {MAX_PATH_DEPTH} segments")

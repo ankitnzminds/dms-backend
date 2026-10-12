@@ -66,6 +66,7 @@ class TestCapabilitiesAndPolicy:
             "enabled": False,
             "allow_external_signers": False,
             "provider": "fake",
+            "builtin_available": True,
         }
         folder = world.mkdir(admin, world.root_id(admin), "f")
         doc = world.available_doc(admin, folder, "a.pdf", PDF + b" off")
@@ -671,11 +672,20 @@ class TestEmbeddedSigningAndRefresh:
         mixed = self._setup(env, with_external=True)
         assert FakeSignatureProvider._docs[_provider_id(w, mixed["id"])].send_email is True
 
-    def test_only_pdf_documents_can_be_sent(self, env):  # noqa: ANN001
+    def test_non_pdf_documents_are_converted_and_unsupported_ones_refused(self, env):  # noqa: ANN001
         w, admin = env["world"], env["admin"]
         txt = w.available_doc(admin, env["folder"], "notes.txt", b"plain text file")
         r = admin.post(
             f"/api/v1/documents/{txt}/signature-requests",
             json={"signers": [{"email": env["carol"].email}]},
         )
-        assert r.status_code == 422 and r.json()["error"]["code"] == "pdf_required"
+        assert r.status_code == 201, (
+            r.text
+        )  # a signing copy (PDF) is made; the original stays as it is
+        weird = w.available_doc(admin, env["folder"], "data.xyz", b"\x00\x01 binary-ish content")
+        bad = admin.post(
+            f"/api/v1/documents/{weird}/signature-requests",
+            json={"signers": [{"email": env["carol"].email}]},
+        )
+        assert bad.status_code == 422 and bad.json()["error"]["code"] == "conversion_failed"
+        assert "can't be converted to PDF" in bad.json()["error"]["message"]

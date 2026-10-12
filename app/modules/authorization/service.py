@@ -49,6 +49,8 @@ from app.db.models import (
 from app.modules.audit import service as audit
 from app.modules.authorization.actions import ALL_ACTIONS, OWNER_ACTIONS, expand_actions
 from app.modules.identity.principal import Principal
+from app.modules.policy_engine.runtime import PolicyRuntime
+from app.modules.policy_engine.runtime import refs as policy_refs
 
 MAX_TREE_DEPTH = 100
 
@@ -81,6 +83,7 @@ class AuthorizationService:
         self.db = db
         self.principal = principal
         self._share_blocked: frozenset[str] | None = None
+        self._policy = PolicyRuntime(db, principal)
 
     def share_blocked_classifications(self) -> frozenset[str]:
         """Classifications that shares cannot grant access to (organization DLP setting)."""
@@ -121,6 +124,19 @@ class AuthorizationService:
     def _effective(
         self, *, folder_ids: list[uuid.UUID], documents: list[Document]
     ) -> tuple[dict[uuid.UUID, frozenset[str]], dict[uuid.UUID, frozenset[str]]]:
+        """ACL/share result, then the policy layer, which can only take actions away."""
+        folder_sets, doc_sets = self._effective_acl(folder_ids=folder_ids, documents=documents)
+        if not self._policy.rules():
+            return folder_sets, doc_sets
+        chains: dict[uuid.UUID, frozenset[uuid.UUID]] = {}
+        if any(ld.rule.doc.scope_type == "folder" for ld in self._policy.rules()):
+            raw = self.folder_chains([*folder_ids, *(d.folder_id for d in documents)])
+            chains = {start: frozenset(fid for fid, _ in chain) for start, chain in raw.items()}
+        return self._policy.restrict(dict(folder_sets), dict(doc_sets), documents, chains)
+
+    def _effective_acl(
+        self, *, folder_ids: list[uuid.UUID], documents: list[Document]
+    ) -> tuple[dict[uuid.UUID, frozenset[str]], dict[uuid.UUID, frozenset[str]]]:
         p = self.principal
         org = p.organization_id
         folder_result: dict[uuid.UUID, frozenset[str]] = {}
@@ -140,17 +156,29 @@ class AuthorizationService:
         if not chain_folder_ids and not doc_ids:
             return folder_result, doc_result
 
+        # Ownership is full power only in the user's OWN SPACE: a folder they created directly under the
+        # organization root (or inside such a folder). Something a person creates inside a folder that was
+        # merely shared with them never grants more than the share did: creating, copying or moving
+        # content must not be a way to raise your own rights.
         owned_folders: set[uuid.UUID] = set()
+        root_ids: set[uuid.UUID] = set()
         if chain_folder_ids:
-            owned_folders = set(
-                self.db.scalars(
-                    select(Folder.id).where(
-                        Folder.id.in_(chain_folder_ids),
-                        Folder.organization_id == org,
-                        Folder.created_by == p.user_id,
-                    )
+            rows = self.db.execute(
+                select(Folder.id, Folder.parent_folder_id, Folder.created_by).where(
+                    Folder.id.in_(chain_folder_ids), Folder.organization_id == org
                 )
-            )
+            ).all()
+            root_ids = {fid for fid, parent, _ in rows if parent is None}
+            made_by_me = {fid: parent for fid, parent, by in rows if by == p.user_id}
+            changed = True
+            while (
+                changed
+            ):  # parents first: a folder is own space if its parent is the root or own space
+                changed = False
+                for fid, parent in made_by_me.items():
+                    if fid not in owned_folders and (parent in root_ids or parent in owned_folders):
+                        owned_folders.add(fid)
+                        changed = True
 
         now = datetime.now(UTC)
         subject_match = or_(
@@ -295,7 +323,9 @@ class AuthorizationService:
                 acc.update(g.actions)
             if shared_ok:
                 acc.update(doc_share.get(doc.id, ()))
-            if doc.owner_id == p.user_id:
+            if doc.owner_id == p.user_id and (
+                doc.folder_id in owned_folders or doc.folder_id in root_ids
+            ):
                 acc.update(OWNER_ACTIONS)
             if doc.id in task_docs:  # reviewers may read what they were asked to approve
                 acc.update((Action.VIEW.value, Action.PREVIEW.value, Action.DOWNLOAD.value))
@@ -358,11 +388,29 @@ class AuthorizationService:
             self.deny(rtype, rid, action, "not_visible")
             raise NotFoundError(f"{rtype.capitalize()} not found.")
         if action.value not in actions:
+            blocked = self._policy.denial(rtype, rid, action.value)
+            if blocked is not None:
+                # Stable reason code + the policy revisions involved; the user is told only that a
+                # policy applies, never which rule or its configuration.
+                self.deny(rtype, rid, action, blocked.reason, policies=policy_refs(blocked))
+                raise ForbiddenError(
+                    "This action is blocked by an organization policy.", code="policy_denied"
+                )
             self.deny(rtype, rid, action, "action_not_granted")
             raise ForbiddenError("You do not have permission to perform this action.")
+        self._policy.observe(rtype, rid, action.value)
 
-    def deny(self, rtype: str, rid: uuid.UUID, action: Action, reason: str) -> None:
+    def deny(
+        self,
+        rtype: str,
+        rid: uuid.UUID,
+        action: Action,
+        reason: str,
+        *,
+        policies: list[dict[str, object]] | None = None,
+    ) -> None:
         AUTHZ_DENIALS.labels(action.value).inc()
+        extra = {"policies": policies} if policies else {}
         audit.record_independent(
             organization_id=self.principal.organization_id,
             actor_user_id=self.principal.user_id,
@@ -370,7 +418,7 @@ class AuthorizationService:
             resource_type=rtype,
             resource_id=rid,
             outcome=AuditOutcome.DENIED,
-            metadata={"requested_action": action.value, "reason": reason},
+            metadata={"requested_action": action.value, "reason": reason, **extra},
         )
 
     # ---------------------------------------------------------------- breadcrumbs

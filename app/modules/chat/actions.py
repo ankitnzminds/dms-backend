@@ -241,7 +241,7 @@ def _fingerprinted(
 
 
 def propose_create_folder(db: Session, authz: AuthorizationService, p: CreateFolderP) -> Proposal:
-    parent = authz.require_folder(p.parent_folder_id, Action.CREATE_CHILD)
+    parent = authz.require_folder(p.parent_folder_id, Action.CREATE_FOLDER)
     return p, {
         "title": f"Create folder “{p.name}”",
         "targets": [],
@@ -280,7 +280,7 @@ def propose_move_copy(
 ) -> Proposal:
     if len(p.items) > max_items:
         raise ValidationFailed(f"At most {max_items} items per action.", code="too_many_items")
-    dest = authz.require_folder(p.target_folder_id, Action.CREATE_CHILD)
+    dest = authz.require_folder(p.target_folder_id, Action.UPLOAD)
     for t in p.items:
         _need(authz, t, Action.COPY if copy else Action.MOVE)
     fp = MoveCopyP(

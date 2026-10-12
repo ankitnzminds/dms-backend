@@ -20,7 +20,9 @@ from app.db.enums import Action, DocumentStatus, ResourceType
 from app.db.models import Document, DocumentVersion, Folder, ShareGrant, StorageLocation
 from app.modules.audit import service as audit
 from app.modules.documents.downloads import Servable, _servable_version
+from app.modules.documents.locks import download_blocked
 from app.modules.organizations.service import get_org, org_settings
+from app.modules.policy_engine.runtime import anonymous_blocked
 from app.modules.sharing import manage
 
 
@@ -31,6 +33,13 @@ def _live_open_share(db: Session, token: str) -> ShareGrant:
     if not org_settings(get_org(db, share.organization_id))["allow_public_links"]:
         raise NotFoundError("This link is not valid.")
     return share
+
+
+def _blocked_classes(db: Session, share: ShareGrant) -> frozenset[str]:
+    value = org_settings(get_org(db, share.organization_id)).get(
+        "share_blocked_classifications", ["restricted"]
+    )
+    return frozenset(value)
 
 
 def _carries(share: ShareGrant, action: Action) -> bool:
@@ -69,6 +78,10 @@ def describe(db: Session, token: str) -> dict[str, Any]:
         d = db.get(Document, share.resource_id)
         if d is None or d.deleted_at is not None:
             raise NotFoundError("This link is not valid.")
+        if d.classification in _blocked_classes(db, share) or anonymous_blocked(
+            db, share.organization_id, d, Action.VIEW.value
+        ):
+            raise NotFoundError("This link is not valid.")
         v = db.get(DocumentVersion, d.current_version_id) if d.current_version_id else None
         return {
             "resource_type": "document",
@@ -97,6 +110,7 @@ def children(db: Session, token: str, folder_id: uuid.UUID | None) -> list[dict[
     if not _in_subtree(db, share, target):
         raise NotFoundError("Not found.")
     out: list[dict[str, Any]] = []
+    blocked = _blocked_classes(db, share)
     for f in db.scalars(
         select(Folder)
         .where(
@@ -117,6 +131,10 @@ def children(db: Session, token: str, folder_id: uuid.UUID | None) -> list[dict[
         )
         .order_by(Document.name)
     ):
+        if d.classification in blocked or anonymous_blocked(
+            db, share.organization_id, d, Action.VIEW.value
+        ):
+            continue  # not offered at all, exactly as for a named recipient
         v = db.get(DocumentVersion, d.current_version_id) if d.current_version_id else None
         out.append(
             {
@@ -142,6 +160,13 @@ def servable_for(db: Session, token: str, document_id: uuid.UUID) -> Servable:
         )
     )
     if doc is None:
+        raise NotFoundError("Not found.")
+    if download_blocked(doc, None):  # anonymous holders are never the lock holder
+        raise NotFoundError("Not found.")
+    # Same rules as a named recipient: the organization's DLP classifications and any enforcing policy.
+    if doc.classification in _blocked_classes(db, share) or anonymous_blocked(
+        db, share.organization_id, doc, Action.DOWNLOAD.value
+    ):
         raise NotFoundError("Not found.")
     inside = (
         doc.id == share.resource_id

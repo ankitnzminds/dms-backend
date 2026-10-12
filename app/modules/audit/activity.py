@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import ForbiddenError, NotFoundError, ValidationFailed
 from app.db.enums import AuditOutcome, Role
-from app.db.models import AuditEvent, User
+from app.db.models import AuditEvent, Document, Folder, User
 from app.modules.audit import service as audit
 from app.modules.identity.principal import Principal
 from app.modules.reports.service import _safe_cell
@@ -127,6 +127,31 @@ def _present(db: Session, p: Principal, events: list[AuditEvent]) -> list[Activi
     emails = (
         dict(db.execute(select(User.id, User.email).where(User.id.in_(ids))).all()) if ids else {}
     )
+    # Current names of the documents / folders the events are about (administrators and auditors see
+    # the whole organization's activity, so naming the items adds nothing they could not already open).
+    doc_ids = {e.resource_id for e in events if e.resource_type == "document" and e.resource_id}
+    folder_ids = {e.resource_id for e in events if e.resource_type == "folder" and e.resource_id}
+    item_names: dict[uuid.UUID, str] = {}
+    if doc_ids:
+        item_names.update(
+            dict(
+                db.execute(
+                    select(Document.id, Document.name).where(
+                        Document.organization_id == p.organization_id, Document.id.in_(doc_ids)
+                    )
+                ).all()
+            )
+        )
+    if folder_ids:
+        item_names.update(
+            dict(
+                db.execute(
+                    select(Folder.id, Folder.name).where(
+                        Folder.organization_id == p.organization_id, Folder.id.in_(folder_ids)
+                    )
+                ).all()
+            )
+        )
     network = _may_see_network(p)
     return [
         ActivityEventOut(
@@ -141,6 +166,8 @@ def _present(db: Session, p: Principal, events: list[AuditEvent]) -> list[Activi
             target_id=e.resource_id,
             target_label=emails.get(e.resource_id)
             if e.resource_type == "user" and e.resource_id
+            else item_names.get(e.resource_id)
+            if e.resource_id
             else None,
             request_id=e.request_id,
             ip_address=e.ip_address if network else None,

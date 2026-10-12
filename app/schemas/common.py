@@ -28,6 +28,12 @@ ActionName = Literal[
     "export",
     "sync",
     "administer",
+    "create_folder",
+    "upload",
+    "create_file",
+    "view_versions",
+    "restore_version",
+    "lock",
 ]
 Classification = Literal["public", "internal", "confidential", "restricted"]
 UploadStateName = Literal["initiated", "uploaded", "finalized", "failed", "cancelled", "expired"]

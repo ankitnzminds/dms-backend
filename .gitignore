@@ -14,3 +14,7 @@ htmlcov/
 dist/
 *.egg-info/
 .dev-load/
+
+# logs and local tool output
+*.log
+.playwright-mcp/

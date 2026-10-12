@@ -15,10 +15,10 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import NotFoundError
 from app.db.enums import Action
-from app.db.models import AuditEvent
+from app.db.models import AuditEvent, Document, Folder
 from app.modules.authorization.service import AuthorizationService
 from app.modules.items.common import user_refs
-from app.schemas.activity import ActivityItem
+from app.schemas.activity import ActivityItem, MyActivityItem
 from app.schemas.common import UserRef
 
 # action -> (label, manager_only)
@@ -110,6 +110,99 @@ def list_activity(
             else None,
             at=r.created_at,
             you=r.actor_user_id == p.user_id,
+        )
+        for r in rows
+    ]
+
+
+# action -> verb for the signed-in user's own feed ("You <verb> <item>")
+MY_VERBS: dict[str, str] = {
+    "document.created": "created",
+    "folder.created": "created folder",
+    "document.version_created": "uploaded a new version of",
+    "document.version_restored": "restored an earlier version of",
+    "document.renamed": "renamed",
+    "folder.renamed": "renamed",
+    "document.metadata_updated": "edited the details of",
+    "document.moved": "moved",
+    "folder.moved": "moved",
+    "document.copied": "copied",
+    "folder.copied": "copied",
+    "document.deleted": "moved to the trash",
+    "folder.deleted": "moved to the trash",
+    "document.restored": "restored",
+    "folder.restored": "restored",
+    "document.locked": "checked out",
+    "document.unlocked": "checked in",
+    # one entry per request: the URL being issued is the user's act (the later byte transfer is not repeated)
+    "document.preview_url_issued": "viewed",
+    "document.download_url_issued": "downloaded",
+    "share.created": "shared",
+    "share.revoked": "revoked a share of",
+    "permission.granted": "granted access to",
+    "permission.revoked": "revoked access to",
+    "workflow.started": "submitted for approval:",
+    "signature.requested": "requested signatures on",
+    "signature.recipient_signed": "signed",
+    "signature.recipient_declined": "declined to sign",
+}
+
+
+def my_activity(
+    db: Session, authz: AuthorizationService, *, limit: int, offset: int
+) -> list[MyActivityItem]:
+    """The caller's own recent actions on files and folders. Never anyone else's, never IPs."""
+    p = authz.principal
+    rows = list(
+        db.scalars(
+            select(AuditEvent)
+            .where(
+                AuditEvent.organization_id == p.organization_id,
+                AuditEvent.actor_user_id == p.user_id,
+                AuditEvent.outcome == "success",
+                AuditEvent.resource_type.in_(("document", "folder")),
+                AuditEvent.resource_id.is_not(None),
+                AuditEvent.action.in_(list(MY_VERBS)),
+            )
+            .order_by(AuditEvent.created_at.desc(), AuditEvent.id.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+    )
+    doc_ids = {r.resource_id for r in rows if r.resource_type == "document" and r.resource_id}
+    folder_ids = {r.resource_id for r in rows if r.resource_type == "folder" and r.resource_id}
+    names: dict[uuid.UUID, str] = {}
+    if doc_ids:
+        docs = list(
+            db.scalars(
+                select(Document).where(
+                    Document.organization_id == p.organization_id, Document.id.in_(doc_ids)
+                )
+            )
+        )
+        held = authz.document_actions(docs)
+        names.update({d.id: d.name for d in docs if Action.DISCOVER.value in held.get(d.id, ())})
+    if folder_ids:
+        folders = list(
+            db.scalars(
+                select(Folder).where(
+                    Folder.organization_id == p.organization_id, Folder.id.in_(folder_ids)
+                )
+            )
+        )
+        held_f = authz.folder_actions([f.id for f in folders])
+        names.update(
+            {f.id: f.name for f in folders if Action.DISCOVER.value in held_f.get(f.id, ())}
+        )
+    return [
+        MyActivityItem(
+            id=r.id,
+            action=r.action,
+            verb=MY_VERBS[r.action],
+            target_type=r.resource_type or "document",
+            target_id=r.resource_id,  # type: ignore[arg-type]
+            target_name=names.get(r.resource_id),  # type: ignore[arg-type]
+            at=r.created_at,
         )
         for r in rows
     ]

@@ -6,17 +6,25 @@ import uuid
 
 from fastapi import APIRouter, Query, Request, Response
 from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import StreamingResponse
 
 from app.api.deps import Authz, CurrentPrincipal, DbSession, limited
 from app.core.errors import ErrorResponse
 from app.core.ratelimit import rate_limit
+from app.modules.documents import downloads
+from app.modules.signatures import builtin, chain_config
 from app.modules.signatures import service as sig
 from app.schemas.common import Page
 from app.schemas.signatures import (
+    ChainIn,
+    ChainOut,
+    DeclineIn,
     SignatureCapabilities,
     SignatureRequestIn,
     SignatureRequestOut,
+    SignatureStatementOut,
     SigningSessionOut,
+    SignRequestIn,
 )
 
 router = APIRouter(tags=["signatures"], responses={404: {"model": ErrorResponse}})
@@ -68,10 +76,17 @@ def list_requests(
         pattern="^(mine|all|to_sign)$",
         description="mine = I requested; to_sign = I am a signer; all = admins",
     ),
+    status: str = Query(
+        "any",
+        pattern="^(any|active|finished)$",
+        description="active = still waiting; finished = history (signed, declined, cancelled, ...)",
+    ),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ) -> Page[SignatureRequestOut]:
-    items, total = sig.list_mine(db, principal, scope=scope, limit=limit, offset=offset)
+    items, total = sig.list_mine(
+        db, principal, scope=scope, limit=limit, offset=offset, status=status
+    )
     return Page[SignatureRequestOut](items=items, total=total, limit=limit, offset=offset)
 
 
@@ -102,6 +117,101 @@ def signing_session(
     request_id: uuid.UUID, db: DbSession, principal: CurrentPrincipal
 ) -> SigningSessionOut:
     return SigningSessionOut(url=sig.open_signing_session(db, principal, request_id))
+
+
+@router.get(
+    "/documents/{document_id}/signature-preview-pdf",
+    summary="The exact PDF that would be sent for signing (converted if needed) - to choose where the signature goes",
+    dependencies=[limited("signature_preview", sensitive=True)],
+    responses={422: {"model": ErrorResponse}},
+)
+def signature_preview_pdf(document_id: uuid.UUID, db: DbSession, authz: Authz) -> Response:
+    pdf, name = sig.preview_signing_pdf(db, authz, document_id)
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": downloads.content_disposition("inline", name),
+            "Cache-Control": "no-store",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+@router.get(
+    "/folders/{folder_id}/signature-chain",
+    response_model=ChainOut,
+    summary="The folder's signature chain (levels of signers); empty = manual signer selection",
+)
+def get_signature_chain(folder_id: uuid.UUID, db: DbSession, authz: Authz) -> ChainOut:
+    return chain_config.get_chain(db, authz, folder_id)
+
+
+@router.put(
+    "/folders/{folder_id}/signature-chain",
+    response_model=ChainOut,
+    summary="Replace the folder's signature chain (administrators); an empty chain removes it",
+)
+def set_signature_chain(
+    folder_id: uuid.UUID, body: ChainIn, db: DbSession, principal: CurrentPrincipal
+) -> ChainOut:
+    return chain_config.set_chain(db, principal, folder_id, body)
+
+
+@router.get(
+    "/signature-statement",
+    response_model=SignatureStatementOut,
+    summary="The consent statement shown to built-in signers (versioned)",
+)
+def signature_statement(principal: CurrentPrincipal) -> SignatureStatementOut:
+    return SignatureStatementOut(version=builtin.CONSENT_VERSION, text=builtin.CONSENT_TEXT)
+
+
+@router.post(
+    "/signature-requests/{request_id}/sign",
+    status_code=204,
+    summary="Built-in signing: agree to the statement and sign (the assigned signer only)",
+    dependencies=[limited("signature_sign", sensitive=True)],
+)
+def sign_request(
+    request_id: uuid.UUID, body: SignRequestIn, db: DbSession, principal: CurrentPrincipal
+) -> Response:
+    builtin.sign(db, principal, request_id, body)
+    return Response(status_code=204)
+
+
+@router.post(
+    "/signature-requests/{request_id}/decline",
+    status_code=204,
+    summary="Built-in signing: decline (a separate, final operation)",
+    dependencies=[limited("signature_sign", sensitive=True)],
+)
+def decline_request(
+    request_id: uuid.UUID, body: DeclineIn, db: DbSession, principal: CurrentPrincipal
+) -> Response:
+    builtin.decline(db, principal, request_id, body.reason)
+    return Response(status_code=204)
+
+
+@router.get(
+    "/signature-requests/{request_id}/document",
+    summary="Built-in signing: download the exact version to be signed (signers only)",
+    dependencies=[limited("signature_document", sensitive=True)],
+)
+def signing_document(
+    request_id: uuid.UUID, db: DbSession, principal: CurrentPrincipal
+) -> StreamingResponse:
+    s = builtin.servable_source(db, principal, request_id)
+    return StreamingResponse(
+        downloads.open_stream(s),
+        media_type="application/octet-stream",
+        headers={
+            "Content-Disposition": downloads.content_disposition("attachment", s.filename),
+            "Content-Length": str(s.size),
+            "Cache-Control": "no-store",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
 
 
 @router.post(

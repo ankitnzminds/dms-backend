@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -159,6 +160,9 @@ class WorkflowTask(Base):
     escalate_to_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("dms.users.id", ondelete="SET NULL")
     )
+    # approval chain flags, copied from the step when the task is created
+    optional: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    is_super_approver: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     created_at: Mapped[datetime] = created_at_col()
 
     __table_args__ = (
@@ -210,4 +214,38 @@ class ApprovalAction(Base):
             name="fk_approval_actions_run_org",
         ),
         Index("ix_approval_actions_run", "run_id", "created_at"),
+    )
+
+
+class FolderApprovalChain(Base):
+    """A folder's approval chain: the (generated, versioned) workflow definition files in it are
+    submitted to. The chain itself lives in that definition's steps (one step per level)."""
+
+    __tablename__ = "folder_approval_chains"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    organization_id: Mapped[uuid.UUID] = mapped_column()
+    folder_id: Mapped[uuid.UUID] = mapped_column()
+    definition_id: Mapped[uuid.UUID] = mapped_column()
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("dms.users.id", ondelete="SET NULL")
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["folder_id", "organization_id"],
+            ["dms.folders.id", "dms.folders.organization_id"],
+            ondelete="CASCADE",
+            name="fk_folder_approval_chains_folder_org",
+        ),
+        ForeignKeyConstraint(
+            ["definition_id", "organization_id"],
+            ["dms.workflow_definitions.id", "dms.workflow_definitions.organization_id"],
+            ondelete="RESTRICT",
+            name="fk_folder_approval_chains_definition_org",
+        ),
+        UniqueConstraint("folder_id", name="uq_folder_approval_chains_folder"),
     )

@@ -38,8 +38,10 @@ from app.db.models.platform import (
     UserPreference,
 )
 from app.db.models.policy import Policy
+from app.db.models.policy_rules import PolicyRevision, PolicyRule
 from app.db.models.processing import DocumentDerivative, DocumentText, MetadataDefinition
 from app.db.models.signatures import (
+    SignatureChainStep,
     SignatureEvent,
     SignatureRecipient,
     SignatureRequest,
@@ -49,6 +51,7 @@ from app.db.models.tree import Document, DocumentVersion, Folder, StorageLocatio
 from app.db.models.uploads import QuotaLedgerEntry, UploadSession
 from app.db.models.workflows import (
     ApprovalAction,
+    FolderApprovalChain,
     WorkflowDefinition,
     WorkflowDefinitionVersion,
     WorkflowRun,
@@ -63,6 +66,8 @@ __all__ = [
     "OfficeLock",
     "VersionDiff",
     "Policy",
+    "PolicyRevision",
+    "PolicyRule",
     "Comment",
     "AccessRequest",
     "AgentRun",
@@ -77,8 +82,10 @@ __all__ = [
     "SignatureEvent",
     "SignatureRecipient",
     "SignatureRequest",
+    "SignatureChainStep",
     "SignedArtifact",
     "ApprovalAction",
+    "FolderApprovalChain",
     "WorkflowDefinition",
     "WorkflowDefinitionVersion",
     "WorkflowRun",

@@ -65,6 +65,29 @@ def _page_count(pdf: bytes) -> int:
         return 1
 
 
+def _box(placement: dict[str, float] | None, index: int, pages: int) -> dict[str, float | int]:
+    """The signature field of the ``index``-th signer. With a chosen placement the first signer gets exactly
+    that box and the others are stacked directly below it (kept inside the page); without one the
+    default spot on the last page is used, as before."""
+    if placement is None:
+        return {
+            "pageNumber": pages,
+            "pageX": _FIELD_X,
+            "pageY": min(_FIELD_Y0 + index * _FIELD_STEP, 90.0),
+            "pageWidth": _FIELD_WIDTH,
+            "pageHeight": _FIELD_HEIGHT,
+        }
+    h = float(placement["page_height"])
+    y = min(float(placement["page_y"]) + index * (h + 1.0), 100.0 - h)
+    return {
+        "pageNumber": min(int(placement["page_number"]), pages),
+        "pageX": float(placement["page_x"]),
+        "pageY": y,
+        "pageWidth": float(placement["page_width"]),
+        "pageHeight": h,
+    }
+
+
 class DocumensoProvider:
     name = "documenso"
 
@@ -106,6 +129,7 @@ class DocumensoProvider:
         size: int,
         signers: list[SignerSpec],
         send_email: bool = False,
+        placement: dict[str, float] | None = None,
     ) -> CreatedRequest:
         pdf = b"".join(content)
         if not pdf.startswith(b"%PDF-"):
@@ -137,11 +161,7 @@ class DocumensoProvider:
                     json={
                         "recipientId": rec["recipientId"],
                         "type": "SIGNATURE",
-                        "pageNumber": pages,
-                        "pageX": _FIELD_X,
-                        "pageY": min(_FIELD_Y0 + i * _FIELD_STEP, 90.0),
-                        "pageWidth": _FIELD_WIDTH,
-                        "pageHeight": _FIELD_HEIGHT,
+                        **_box(placement, i, pages),
                     },
                 )
             self._call("POST", f"/documents/{doc_id}/send", json={"sendEmail": send_email})

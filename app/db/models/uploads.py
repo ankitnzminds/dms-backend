@@ -34,6 +34,8 @@ class UploadSession(Base):
     # set when the session uploads a new version of an existing document
     document_id: Mapped[uuid.UUID | None] = mapped_column()
     expected_latest_version: Mapped[int | None] = mapped_column()
+    # "upload" (Upload right) or "create_file" (Create File right): what the folder must allow.
+    intent: Mapped[str] = mapped_column(String(16), default="upload", server_default="upload")
     created_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("dms.users.id", ondelete="RESTRICT"))
     filename: Mapped[str] = mapped_column(String(255))
     content_type: Mapped[str] = mapped_column(String(255))

@@ -400,7 +400,8 @@ class TestSecurity:
         rv = env["reviewers"]
         flow = make_flow(env, [{"name": "Legal", "assignees": [user_assignee(rv["alice"])]}])
         run = start(env, flow).json()
-        assert env["author"].delete(f"/api/v1/documents/{env['doc']}").status_code == 204
+        # deleting needs the Delete right (an uploader does not get it just by being the uploader)
+        assert env["admin"].delete(f"/api/v1/documents/{env['doc']}").status_code == 204
         assert env["admin"].get(f"/api/v1/workflow-runs/{run['id']}").json()["state"] == "cancelled"
         assert my_tasks(rv["alice"]) == []
 
@@ -408,7 +409,7 @@ class TestSecurity:
         rv, admin = env["reviewers"], env["admin"]
         flow = make_flow(env, [{"name": "Legal", "assignees": [user_assignee(rv["alice"])]}])
         start(env, flow)
-        env["author"].delete(f"/api/v1/documents/{env['doc']}")
+        admin.delete(f"/api/v1/documents/{env['doc']}")
         assert admin.delete(f"/api/v1/trash/documents/{env['doc']}").status_code == 200
         with env["world"].db_factory() as db:
             assert (

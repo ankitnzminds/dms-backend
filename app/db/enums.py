@@ -138,6 +138,13 @@ class Action(StrEnum):
     EXPORT = "export"
     SYNC = "sync"  # permitted to be synchronized by approved clients (stored; no sync client exists yet)
     ADMINISTER = "administer"
+    # Granular create/version/lock rights (create_child is the older "create anything" umbrella).
+    CREATE_FOLDER = "create_folder"
+    UPLOAD = "upload"  # upload files into a folder
+    CREATE_FILE = "create_file"  # create a new file in a folder
+    VIEW_VERSIONS = "view_versions"
+    RESTORE_VERSION = "restore_version"
+    LOCK = "lock"  # lock / unlock (check out / in)
 
 
 def values(enum_cls: type[StrEnum]) -> list[str]:

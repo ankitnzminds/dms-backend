@@ -361,7 +361,7 @@ class TestLocks:
                 json={
                     "subject_type": "user",
                     "subject_id": str(u.user_id),
-                    "actions": ["view", "rename", "upload_version", "delete"],
+                    "actions": ["view", "rename", "upload_version", "delete", "lock"],
                 },
             )
         doc = w.available_doc(a, env["src"], "locked.pdf", PDF + b" locked")

@@ -30,6 +30,8 @@ class LockOut(ApiModel):
     locked_at: datetime
     expires_at: datetime | None
     is_mine: bool
+    #: Others cannot download while the lock is held.
+    prevent_download: bool = False
 
 
 class FolderOut(ApiModel):
@@ -45,6 +47,7 @@ class FolderOut(ApiModel):
     deleted_at: datetime | None = None
     updated_by: UserRef | None = None
     is_favorite: bool = False
+    lock: LockOut | None = None
     permissions: list[ActionName]
     breadcrumb: list[BreadcrumbSegmentOut] = Field(
         description="Path of ancestors, root first (excludes the folder itself)."

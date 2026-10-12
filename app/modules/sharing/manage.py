@@ -411,6 +411,7 @@ def invite(
         )
     resolved = base._resolve_recipients(db, p.organization_id, p.user_id, users)
     invited: list[str] = []
+    invited_refs: list[dict[str, str]] = []
     skipped: list[str] = []
     for rtype, rid in resolved:
         label = _label_of(db, rtype, rid)
@@ -429,6 +430,7 @@ def invite(
             )
         )
         invited.append(label)
+        invited_refs.append({"type": rtype, "id": str(rid)})
         _log(
             db,
             authz,
@@ -437,7 +439,9 @@ def invite(
             {"user_id": str(rid), "permissions": ["view"], "send_email": send_email},
         )
     email = "off"
-    if invited and send_email and share.notify_email:
+    if invited:
+        # The in-app notification ("X shared ... with you") always goes to the newly invited people only;
+        # whether an e-mail is sent as well is a separate choice.
         outbox.enqueue(
             db,
             organization_id=p.organization_id,
@@ -448,9 +452,11 @@ def invite(
                 "resource_type": share.resource_type,
                 "resource_id": str(share.resource_id),
                 "name": share.name or "item",
+                "recipients": invited_refs,
             },
         )
-        email = "queued" if get_settings().email_provider != "none" else "not_configured"
+        if send_email and share.notify_email:
+            email = "queued" if get_settings().email_provider != "none" else "not_configured"
     db.commit()
     return InviteResult(share=_out(db, authz, share), invited=invited, skipped=skipped, email=email)  # type: ignore[arg-type]
 
@@ -513,6 +519,20 @@ def add_group(
         "share.group_added",
         {"principal": label, "type": rtype, "id": str(rid), "permissions": ["view"]},
     )
+    if rtype == RecipientType.GROUP.value:
+        outbox.enqueue(
+            db,
+            organization_id=p.organization_id,
+            event_type="share.created",
+            aggregate_type="share",
+            aggregate_id=share.id,
+            payload={
+                "resource_type": share.resource_type,
+                "resource_id": str(share.resource_id),
+                "name": share.name or "item",
+                "recipients": [{"type": rtype, "id": str(rid)}],
+            },
+        )
     db.commit()
     return _out(db, authz, share)
 

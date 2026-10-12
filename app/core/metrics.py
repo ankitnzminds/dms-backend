@@ -19,4 +19,7 @@ OUTBOX_PROCESSED = Counter(
     "dms_outbox_events_total", "Outbox events handled", ["event_type", "result"]
 )
 OUTBOX_BACKLOG = Gauge("dms_outbox_backlog", "Outbox events pending")
+OUTBOX_DEAD = Gauge(
+    "dms_outbox_dead", "Outbox events that exhausted their retries (need attention)"
+)
 OUTBOX_OLDEST_AGE = Gauge("dms_outbox_oldest_pending_age_seconds", "Age of oldest pending event")

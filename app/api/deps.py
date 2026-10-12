@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.adapters.identity.base import IdentityProvider, InvalidTokenError, VerifiedIdentity
 from app.adapters.identity.jwt_providers import build_identity_provider
+from app.core.auth_audit import record_token_rejected
 from app.core.config import get_settings
 from app.core.context import set_principal_context
 from app.core.errors import UnauthorizedError, ValidationFailed
@@ -45,6 +46,7 @@ def _bearer_token(authorization: str | None) -> str:
 
 
 def get_verified_identity(
+    request: Request,
     authorization: Annotated[str | None, Header()] = None,
     provider: IdentityProvider = Depends(get_identity_provider),
 ) -> VerifiedIdentity:
@@ -53,6 +55,7 @@ def get_verified_identity(
         return provider.verify_token(token)
     except InvalidTokenError as exc:
         AUTH_FAILURES.labels("invalid_token").inc()
+        record_token_rejected("invalid_token", request.url.path)
         raise UnauthorizedError("Invalid or expired credentials.") from exc
 
 

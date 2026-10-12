@@ -75,6 +75,9 @@ class User(Base):
     # Tokens issued before this instant are rejected (session revocation, deprovisioning).
     sessions_valid_after: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # LOCAL DEVELOPMENT sign-in only: scrypt hash of this user's own password (see core/local_password.py).
+    # Never set in staging/production, where the identity provider owns passwords.
+    local_password_hash: Mapped[str | None] = mapped_column(String(255))
     created_at: Mapped[datetime] = created_at_col()
     updated_at: Mapped[datetime] = updated_at_col()
 

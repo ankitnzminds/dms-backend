@@ -66,6 +66,7 @@ def initiate_upload(
         sha256=body.sha256,
         expected_latest_version=None,
         idempotency_key=idempotency_key,
+        intent=body.intent,
     )
     return session_out(session)
 

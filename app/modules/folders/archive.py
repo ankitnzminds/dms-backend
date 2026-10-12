@@ -27,6 +27,7 @@ from app.db.enums import Action, DocumentStatus, ScanStatus
 from app.db.models import Document, DocumentVersion, Folder, StorageLocation
 from app.modules.audit import service as audit
 from app.modules.authorization.service import AuthorizationService
+from app.modules.documents.locks import assert_download_allowed, download_blocked
 from app.modules.folders.common import subtree_folder_ids
 
 MAX_FILES = 2000
@@ -51,6 +52,7 @@ def _clean(name: str) -> str:
 def build(db: Session, authz: AuthorizationService, folder_id: uuid.UUID) -> Archive:
     p = authz.principal
     root = authz.require_folder(folder_id, Action.DOWNLOAD)
+    assert_download_allowed(root, p)
     ids = subtree_folder_ids(db, p.organization_id, root.id)
     folders = {
         f.id: f
@@ -111,6 +113,7 @@ def build(db: Session, authz: AuthorizationService, folder_id: uuid.UUID) -> Arc
             or v.scan_status != ScanStatus.CLEAN.value
             or path is None
             or Action.DOWNLOAD.value not in doc_perms.get(d.id, ())
+            or download_blocked(d, p)
         ):
             skipped += 1
             continue

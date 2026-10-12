@@ -168,8 +168,29 @@ def update_document(
         new_name = validate_name(name, what="Document name")
     if folder_id is not None and folder_id != doc.folder_id:
         authz.require_document(doc.id, Action.MOVE)
-        target = authz.require_folder(folder_id, Action.CREATE_CHILD)
+        target = authz.require_folder(folder_id, Action.UPLOAD)
         new_folder = target.id
+    if new_folder != doc.folder_id or new_name != doc.name:
+        from app.modules.governance import service as governance
+
+        if new_folder != doc.folder_id:
+            governance.assert_movable(
+                db,
+                p.organization_id,
+                documents=[doc],
+                folders=[],
+                destination_id=new_folder,
+                actor_id=p.user_id,
+            )
+        else:
+            governance.assert_not_held(
+                db,
+                p.organization_id,
+                documents=[doc],
+                folders=[],
+                operation="rename",
+                actor_id=p.user_id,
+            )
     if metadata is not None:
         authz.require_document(doc.id, Action.EDIT_METADATA)
         from app.modules.metadata.service import validate_document_metadata
@@ -247,6 +268,10 @@ def restore_document(
     doc = authz.require_document(document_id, Action.RESTORE, include_deleted=True)
     if doc.deleted_at is None:
         raise ConflictError("Document is not in the trash.", code="not_deleted")
+    if doc.purge_requested_at is not None and not p.is_admin:
+        raise NotFoundError(
+            "Document not found."
+        )  # only the administrators' Recycle Bin restores it
     folder = db.get(Folder, doc.folder_id)
     if (
         folder is None
@@ -259,6 +284,7 @@ def restore_document(
     name = validate_name(new_name, what="Document name") if new_name else doc.name
     ensure_name_free(db, p.organization_id, doc.folder_id, name, exclude_document_id=doc.id)
     doc.name = name
+    doc.purge_requested_at = doc.purge_requested_by = None
     doc.deleted_at = doc.deleted_by = doc.delete_batch_id = None
     audit.record(
         db,
@@ -282,7 +308,7 @@ def restore_document(
 def list_versions(
     db: Session, authz: AuthorizationService, document_id: uuid.UUID
 ) -> list[VersionOut]:
-    doc = authz.require_document(document_id, Action.VIEW)
+    doc = authz.require_document(document_id, Action.VIEW_VERSIONS)
     perms = authz.document_actions([doc])[doc.id]
     versions = list(
         db.scalars(
@@ -398,8 +424,18 @@ def restore_version(
 ) -> VersionOut:
     """Restore = create a *new* version with the old content. History is never rewritten."""
     p = authz.principal
-    doc = authz.require_document(document_id, Action.UPLOAD_VERSION)
+    doc = authz.require_document(document_id, Action.RESTORE_VERSION)
     assert_unlocked_for(db, doc, p)
+    from app.modules.governance.service import assert_not_held
+
+    assert_not_held(
+        db,
+        p.organization_id,
+        documents=[doc],
+        folders=[],
+        operation="restore_version",
+        actor_id=p.user_id,
+    )
     source = db.scalar(
         select(DocumentVersion).where(
             DocumentVersion.document_id == doc.id,
@@ -433,7 +469,7 @@ def copy_document(
     """Copy creates a NEW logical document (new id, new object); move keeps identity."""
     p = authz.principal
     src_doc = authz.require_document(document_id, Action.COPY)
-    target = authz.require_folder(target_folder_id, Action.CREATE_CHILD)
+    target = authz.require_folder(target_folder_id, Action.UPLOAD)
     if src_doc.current_version_id is None or src_doc.status != DocumentStatus.AVAILABLE.value:
         raise ConflictError("Only available documents can be copied.", code="not_available")
     source = db.get(DocumentVersion, src_doc.current_version_id)

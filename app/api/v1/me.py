@@ -9,13 +9,15 @@ from fastapi import APIRouter, Depends, Header, Query, Response
 from sqlalchemy import func, or_, select
 
 from app.adapters.identity.base import VerifiedIdentity
-from app.api.deps import CurrentPrincipal, DbSession, get_verified_identity, limited
+from app.api.deps import Authz, CurrentPrincipal, DbSession, get_verified_identity, limited
 from app.core.errors import ForbiddenError, NotFoundError, ValidationFailed
 from app.db.enums import UserStatus
 from app.db.models import Membership, Organization, User
+from app.modules.activity import service as activity
 from app.modules.identity.service import assert_session_valid, find_or_bind_user
 from app.modules.organizations import service as orgs
 from app.modules.users import service as users
+from app.schemas.activity import MyActivityItem
 from app.schemas.admin import MeOut, OrganizationOut, OrganizationUpdate, UsageOut
 from app.schemas.common import ApiModel, UserRef
 
@@ -241,3 +243,17 @@ def logout(db: DbSession, principal: CurrentPrincipal, body: LogoutIn | None = N
     )
     db.commit()
     return Response(status_code=204)
+
+
+@router.get(
+    "/me/activity",
+    response_model=list[MyActivityItem],
+    summary="What I did recently (my own activity feed)",
+)
+def my_activity(
+    db: DbSession,
+    authz: Authz,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+) -> list[MyActivityItem]:
+    return activity.my_activity(db, authz, limit=limit, offset=offset)

@@ -88,9 +88,13 @@ def starred(
     "/trash", response_model=Page[TrashItem], summary="Trashed items the caller may restore"
 )
 def trash(
-    db: DbSession, authz: Authz, limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0)
+    db: DbSession,
+    authz: Authz,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    q: str | None = Query(None, max_length=200, description="Only items whose name contains this."),
 ) -> Page[TrashItem]:
-    items, total = folders.list_trash(db, authz, limit=limit, offset=offset)
+    items, total = folders.list_trash(db, authz, limit=limit, offset=offset, q=q)
     return Page[TrashItem](items=items, total=total, limit=limit, offset=offset)
 
 

@@ -105,6 +105,21 @@ def _current_name(
     return folder.name, folder.parent_folder_id
 
 
+def _require_destination(
+    authz: AuthorizationService, target_id: uuid.UUID, items: list[ItemRef]
+) -> Folder:
+    """The destination must allow what is being put there: files need Upload, folders Create Folder."""
+    needs: list[Action] = []
+    if any(i.kind == "document" for i in items):
+        needs.append(Action.UPLOAD)
+    if any(i.kind != "document" for i in items) or not items:
+        needs.append(Action.CREATE_FOLDER)
+    target = authz.require_folder(target_id, needs[0])
+    for extra in needs[1:]:
+        authz.require_folder(target_id, extra)
+    return target
+
+
 def bulk_move(
     db: Session,
     authz: AuthorizationService,
@@ -112,7 +127,7 @@ def bulk_move(
     target_id: uuid.UUID,
     on_conflict: str,
 ) -> BulkResult:
-    target = authz.require_folder(target_id, Action.CREATE_CHILD)  # fails the whole request
+    target = _require_destination(authz, target_id, items)  # fails the whole request
     org = authz.principal.organization_id
     results: list[BulkItemResult] = []
     for item in items:
@@ -177,7 +192,7 @@ def bulk_copy(
     target_id: uuid.UUID,
     on_conflict: str,
 ) -> BulkResult:
-    target = authz.require_folder(target_id, Action.CREATE_CHILD)
+    target = _require_destination(authz, target_id, items)
     org = authz.principal.organization_id
     results: list[BulkItemResult] = []
     for item in items:
@@ -250,7 +265,8 @@ def copy_folder(
     src = authz.require_folder(folder_id, Action.COPY)
     if src.parent_folder_id is None:
         raise ForbiddenError("The root folder cannot be copied.")
-    target = authz.require_folder(target_id, Action.CREATE_CHILD)
+    target = authz.require_folder(target_id, Action.CREATE_FOLDER)
+    authz.require_folder(target_id, Action.UPLOAD)  # a copy also creates the files inside
     subtree = subtree_folder_ids(db, p.organization_id, src.id)
     if target.id in set(subtree):
         raise ValidationFailed("A folder cannot be copied into itself or one of its subfolders.")

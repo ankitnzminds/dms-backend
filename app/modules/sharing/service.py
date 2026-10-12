@@ -134,7 +134,13 @@ def create_share(
             )
         held = authz.document_actions([doc])[doc.id]
         name, path = doc.name, f"{plain_path(db, p.organization_id, doc.folder_id)}/{doc.name}"
-        allowed_pool = SHAREABLE_ACTIONS - {Action.CREATE_CHILD.value}
+        # a file has no inside: nothing about creating or uploading below it
+        allowed_pool = SHAREABLE_ACTIONS - {
+            Action.CREATE_CHILD.value,
+            Action.CREATE_FOLDER.value,
+            Action.UPLOAD.value,
+            Action.CREATE_FILE.value,
+        }
     else:
         folder = authz.require_folder(resource_id, Action.SHARE)
         held = authz.folder_actions([folder.id])[folder.id]

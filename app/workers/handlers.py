@@ -19,6 +19,7 @@ from app.db.enums import AuditOutcome, DocumentStatus, Role, ScanStatus
 from app.db.models import (
     Document,
     DocumentVersion,
+    GroupMembership,
     Membership,
     OutboxEvent,
     ProcessedEvent,
@@ -212,7 +213,28 @@ def handle_share_created(db: Session, event: OutboxEvent, ctx: WorkerContext) ->
         return
     name = event.payload.get("name", "an item")
     sharer = _display(db, share.created_by)
-    for uid in expand_group_members(db, share.organization_id, share.id) - {share.created_by}:
+    targets = expand_group_members(db, share.organization_id, share.id) - {share.created_by}
+    only = event.payload.get("recipients")
+    if only:  # people added to an existing share: tell just them, not everyone already on it
+        wanted: set[uuid.UUID] = set()
+        group_ids: list[uuid.UUID] = []
+        for r in only:
+            rid = uuid.UUID(str(r["id"]))
+            if r.get("type") == "user":
+                wanted.add(rid)
+            elif r.get("type") == "group":
+                group_ids.append(rid)
+        if group_ids:
+            wanted.update(
+                db.scalars(
+                    select(GroupMembership.user_id).where(
+                        GroupMembership.group_id.in_(group_ids),
+                        GroupMembership.organization_id == share.organization_id,
+                    )
+                )
+            )
+        targets &= wanted
+    for uid in targets:
         notifications.create(
             db,
             organization_id=share.organization_id,
@@ -406,6 +428,31 @@ def handle_signature_event(db: Session, event: OutboxEvent, ctx: WorkerContext) 
     process_event(get_sessionmaker(), event.aggregate_id)
 
 
+def handle_signature_requested(db: Session, event: OutboxEvent, ctx: WorkerContext) -> None:
+    """Built-in signing: tell each signer that a document is waiting for them."""
+    from app.db.models import SignatureRecipient, SignatureRequest
+
+    req = db.get(SignatureRequest, event.aggregate_id)
+    if req is None or req.organization_id != event.organization_id:
+        return
+    for rec in db.scalars(
+        select(SignatureRecipient).where(
+            SignatureRecipient.request_id == req.id, SignatureRecipient.user_id.is_not(None)
+        )
+    ):
+        notifications.create(
+            db,
+            organization_id=req.organization_id,
+            user_id=rec.user_id,  # type: ignore[arg-type]
+            type_="signature.requested",
+            title=f'Signature requested: "{req.title}"',
+            resource_type="signature_request",
+            resource_id=req.id,
+            source_event_id=event.id,
+        )
+    db.commit()
+
+
 def handle_signature_finished(db: Session, event: OutboxEvent, ctx: WorkerContext) -> None:
     from app.db.models import SignatureRequest
 
@@ -500,6 +547,7 @@ HANDLERS: dict[str, Handler] = {
     "directory.sync": handle_directory_sync,
     "signature.event": handle_signature_event,
     "signature.finished": handle_signature_finished,
+    "signature.requested": handle_signature_requested,
     "workflow.task_assigned": handle_workflow_task_assigned,
     "workflow.finished": handle_workflow_finished,
     "workflow.task_overdue": handle_workflow_task_overdue,

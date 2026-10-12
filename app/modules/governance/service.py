@@ -23,7 +23,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError, ValidationFailed
-from app.db.enums import Action, LedgerEntryType, ResourceType
+from app.db.enums import Action, AuditOutcome, LedgerEntryType, ResourceType
 from app.db.models import (
     Document,
     DocumentDerivative,
@@ -164,6 +164,114 @@ def assert_deletable(
     _raise_if_protected(
         find_protections(db, org_id, documents=documents, folders=folders, check_retention=False)
     )
+
+
+def _report_block(
+    db: Session,
+    org_id: uuid.UUID,
+    actor_id: uuid.UUID | None,
+    operation: str,
+    found: list[Protection],
+) -> None:
+    """Record WHICH protection stopped an operation (independent commit: the request rolls back)."""
+    for prot in found[:5]:
+        audit.record_independent(
+            organization_id=org_id,
+            actor_user_id=actor_id,
+            action="governance.blocked",
+            resource_type=prot.resource_type,
+            resource_id=prot.resource_id,
+            outcome=AuditOutcome.DENIED,
+            metadata={
+                "operation": operation,
+                "reason": prot.reason,
+                "until": prot.until.isoformat() if prot.until else None,
+            },
+        )
+
+
+def assert_not_held(
+    db: Session,
+    org_id: uuid.UUID,
+    *,
+    documents: list[Document],
+    folders: list[Folder],
+    operation: str,
+    actor_id: uuid.UUID | None = None,
+) -> None:
+    """Legal hold preserves content AND location: rename, move and restoring an old version of held
+    items are refused until every covering hold is released (retention does not apply here)."""
+    found = find_protections(
+        db, org_id, documents=documents, folders=folders, check_retention=False
+    )
+    if found:
+        _report_block(db, org_id, actor_id, operation, found)
+        _raise_if_protected(found)
+
+
+def assert_movable(
+    db: Session,
+    org_id: uuid.UUID,
+    *,
+    documents: list[Document],
+    folders: list[Folder],
+    destination_id: uuid.UUID,
+    actor_id: uuid.UUID | None = None,
+) -> None:
+    """A move must not take content out from under a hold or out of a retention scope.
+
+    * legal hold on the item (or an ancestor) -> refused;
+    * a retention policy scoped to a folder that the item is leaving -> refused while its minimum
+      retention period is still running (org-wide policies follow the item, so they never block).
+    """
+    assert_not_held(
+        db, org_id, documents=documents, folders=folders, operation="move", actor_id=actor_id
+    )
+    scoped = list(
+        db.scalars(
+            select(RetentionPolicy).where(
+                RetentionPolicy.organization_id == org_id,
+                RetentionPolicy.enabled.is_(True),
+                RetentionPolicy.scope_folder_id.is_not(None),
+            )
+        )
+    )
+    if not scoped:
+        return
+    dest_chain = _chains(db, org_id, [destination_id]).get(destination_id, set())
+    # (document, folders that stay above it after the move)
+    stay: dict[uuid.UUID, tuple[Document, set[uuid.UUID] | None]] = {}
+    for d in documents:
+        stay[d.id] = (d, None)  # a moved document leaves every old ancestor
+    for f in folders:
+        above = (
+            _chains(db, org_id, [f.parent_folder_id]).get(f.parent_folder_id, set())
+            if f.parent_folder_id
+            else set()
+        )
+        sub = subtree_folder_ids(db, org_id, f.id)
+        for d in db.scalars(
+            select(Document).where(
+                Document.organization_id == org_id,
+                Document.folder_id.in_(sub),
+                Document.deleted_at.is_(None),
+            )
+        ):
+            stay[d.id] = (d, above)
+    chains = _chains(db, org_id, {d.folder_id for d, _ in stay.values()})
+    now = datetime.now(UTC)
+    found: list[Protection] = []
+    for d, kept_above in stay.values():
+        before = chains.get(d.folder_id, set())
+        after = dest_chain if kept_above is None else (before - kept_above) | dest_chain
+        for pol in scoped:
+            if pol.scope_folder_id in before and pol.scope_folder_id not in after:
+                until = d.created_at + timedelta(days=pol.min_retention_days)
+                if until > now:
+                    found.append(Protection("document", d.id, "retention_active", until))
+    if found:
+        _report_block(db, org_id, actor_id, "move", found)
+        _raise_if_protected(found)
 
 
 # ------------------------------------------------------------------ purge
@@ -333,8 +441,12 @@ def _execute_purge(
 
 def purge(
     db: Session, authz: AuthorizationService, kind: str, resource_id: uuid.UUID
-) -> dict[str, int]:
-    """Permanently delete a TRASHED document or folder (user initiated)."""
+) -> dict[str, Any]:
+    """ "Delete permanently" a TRASHED document or folder.
+
+    Only an administrator really purges (see ``purge_for_admin``). For everyone else the item leaves their
+    trash but stays recoverable: it is flagged for the administrators' Recycle Bin and nothing is removed.
+    """
     p = authz.principal
     if kind == "document":
         item: Document | Folder = authz.require_document(
@@ -362,6 +474,33 @@ def purge(
             db, p.organization_id, documents=docs, folders=folders, check_retention=True
         )
     )
+    if not p.is_admin:
+        item.purge_requested_at = datetime.now(UTC)
+        item.purge_requested_by = p.user_id
+        audit.record(
+            db,
+            organization_id=p.organization_id,
+            actor_user_id=p.user_id,
+            action=f"{kind}.permanent_delete_requested",
+            resource_type=kind,
+            resource_id=resource_id,
+            metadata={"name": item.name, "retained_for_administrators": True},
+        )
+        db.commit()
+        return {"documents": 0, "folders": 0, "retained": True}
+    return _purge_checked(db, authz, kind, resource_id, item, docs, folders)
+
+
+def _purge_checked(
+    db: Session,
+    authz: AuthorizationService,
+    kind: str,
+    resource_id: uuid.UUID,
+    item: Document | Folder,
+    docs: list[Document],
+    folders: list[Folder],
+) -> dict[str, Any]:
+    p = authz.principal
     path_info = plain_path(db, p.organization_id, item.id) if kind == "folder" else item.name
     stats = {"documents": len(docs), "folders": len(folders)}
     objects = _execute_purge(db, p.organization_id, docs, folders)
@@ -373,6 +512,15 @@ def purge(
         resource_type=kind,
         resource_id=resource_id,
         metadata={"name": path_info, **stats, "objects": len(objects)},
+    )
+    audit.record(
+        db,
+        organization_id=p.organization_id,
+        actor_user_id=p.user_id,
+        action=f"{kind}.permanently_deleted",
+        resource_type=kind,
+        resource_id=resource_id,
+        metadata={"name": path_info, **stats},
     )
     _enqueue_object_deletion(db, p.organization_id, resource_id, objects)
     db.commit()

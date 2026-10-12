@@ -15,6 +15,10 @@ class AssigneeSpec(ApiModel):
     type: Literal["user", "group", "role"]
     id: uuid.UUID | None = None
     role: Literal["owner", "admin", "member", "auditor"] | None = None
+    # approval chains: an optional approver does not block the step; a super approver's approval
+    # fast-forwards the rest of the workflow (both default off, so existing definitions are unchanged)
+    optional: bool = False
+    is_super_approver: bool = False
 
     @model_validator(mode="after")
     def _shape(self) -> AssigneeSpec:
@@ -129,6 +133,8 @@ class TaskOut(ApiModel):
     document_version_number: int | None = None
     started_by: UserRef | None = None
     note: str | None = None
+    optional: bool = False
+    is_super_approver: bool = False
 
 
 class ActionOut(ApiModel):
@@ -167,3 +173,34 @@ class RunOut(ApiModel):
     steps: list[StepStatusOut]
     tasks: list[TaskOut]
     actions: list[ActionOut]
+
+
+class ApprovalChainEntryIn(ApiModel):
+    user_id: uuid.UUID
+    optional: bool = False
+    is_super_approver: bool = False
+
+
+class ApprovalChainIn(ApiModel):
+    """Levels run in order; approvers inside a level are asked in parallel. Empty = remove the chain."""
+
+    levels: list[list[ApprovalChainEntryIn]] = Field(default_factory=list, max_length=20)
+    group_ids: list[list[uuid.UUID]] = Field(default_factory=list, max_length=20)
+
+
+class ApprovalChainSignerOut(ApiModel):
+    user_id: uuid.UUID
+    name: str
+    email: str
+    optional: bool
+    is_super_approver: bool
+
+
+class ApprovalChainOut(ApiModel):
+    folder_id: uuid.UUID
+    definition_id: uuid.UUID | None
+    levels: list[list[ApprovalChainSignerOut]]
+
+
+class SubmitForApprovalIn(ApiModel):
+    note: str | None = Field(None, max_length=2000)

@@ -69,6 +69,7 @@ class SignatureProvider(Protocol):
         size: int,
         signers: list[SignerSpec],
         send_email: bool = False,
+        placement: dict[str, float] | None = None,
     ) -> CreatedRequest: ...
 
     def get_state(self, provider_request_id: str) -> ProviderState: ...

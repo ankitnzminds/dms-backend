@@ -22,10 +22,11 @@ from app.adapters.malware.base import MalwareScanner
 from app.adapters.malware.factory import build_scanner
 from app.core.config import Settings, get_settings
 from app.core.logging import get_logger
-from app.core.metrics import OUTBOX_BACKLOG, OUTBOX_OLDEST_AGE, OUTBOX_PROCESSED
-from app.db.enums import OutboxStatus
+from app.core.metrics import OUTBOX_BACKLOG, OUTBOX_DEAD, OUTBOX_OLDEST_AGE, OUTBOX_PROCESSED
+from app.db.enums import AuditOutcome, OutboxStatus
 from app.db.models import OutboxEvent
 from app.db.session import get_sessionmaker
+from app.modules.audit import service as audit
 
 log = get_logger("app.worker")
 
@@ -151,8 +152,10 @@ def _record_failure(
             return "skipped"
         event.last_error = _sanitize_error(exc)
         event.locked_until = None
+        dead_org, dead_attempts = None, event.attempts
         if event.attempts >= event.max_attempts:
             event.status = OutboxStatus.DEAD.value
+            dead_org = event.organization_id
             result = "dead"
         else:
             event.status = OutboxStatus.PENDING.value
@@ -164,6 +167,16 @@ def _record_failure(
     OUTBOX_PROCESSED.labels(event_type, result).inc()
     if result == "dead":
         log.error("outbox_event_dead", extra={"event_id": str(event_id), "event_type": event_type})
+        # visible to the tenant's administrators (Audit log) and to alerting; error text is sanitized
+        audit.record_independent(
+            organization_id=dead_org,
+            actor_user_id=None,
+            action="outbox.event_dead",
+            resource_type="outbox_event",
+            resource_id=event_id,
+            outcome=AuditOutcome.FAILURE,
+            metadata={"event_type": event_type, "attempts": dead_attempts},
+        )
     return result
 
 
@@ -178,7 +191,12 @@ def update_gauges(factory: sessionmaker[Session]) -> None:
                 OutboxEvent.status.in_(["pending", "processing"])
             )
         )
+        dead = (
+            db.scalar(select(func.count()).where(OutboxEvent.status == OutboxStatus.DEAD.value))
+            or 0
+        )
     OUTBOX_BACKLOG.set(backlog)
+    OUTBOX_DEAD.set(dead)
     OUTBOX_OLDEST_AGE.set((datetime.now(UTC) - oldest).total_seconds() if oldest else 0)
 
 

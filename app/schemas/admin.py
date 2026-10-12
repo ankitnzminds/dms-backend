@@ -158,6 +158,10 @@ class UploadInitiate(ApiModel):
     expected_latest_version: int | None = Field(
         None, description="Required when uploading a new version (optimistic concurrency)."
     )
+    intent: Literal["upload", "create_file"] = Field(
+        "upload",
+        description='"create_file" needs the Create File right; "upload" needs the Upload right.',
+    )
 
 
 class UploadFinalizeOut(ApiModel):

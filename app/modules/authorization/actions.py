@@ -24,6 +24,12 @@ SHAREABLE_ACTIONS: frozenset[str] = frozenset(
         Action.EDIT_METADATA,
         Action.RENAME,
         Action.COMMENT,
+        Action.CREATE_FOLDER,
+        Action.UPLOAD,
+        Action.CREATE_FILE,
+        Action.VIEW_VERSIONS,
+        Action.RESTORE_VERSION,
+        Action.LOCK,
     )
 )
 
@@ -35,6 +41,8 @@ def expand_actions(actions: Iterable[str]) -> frozenset[str]:
     """Closure: holding any operational action implies being able to see (view) the resource,
     and viewing implies discovery. Keeps grants minimal without allowing blind operations."""
     result = {a for a in actions if a in ALL_ACTIONS}
+    if Action.CREATE_CHILD.value in result:  # the older "create anything" umbrella
+        result.update((Action.CREATE_FOLDER.value, Action.UPLOAD.value, Action.CREATE_FILE.value))
     if result - {_DISCOVER}:
         result.add(_VIEW)
     if _VIEW in result:

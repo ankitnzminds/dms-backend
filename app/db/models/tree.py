@@ -80,6 +80,15 @@ class Folder(Base):
     color_tag: Mapped[str | None] = mapped_column(String(16))
     # False: grants on ancestor folders no longer apply here ("Inherit Folder Level Security" off).
     inherit_acl: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    # Cooperative lock (same semantics as a document's check-out); covers this folder itself, not its contents.
+    locked_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("dms.users.id", ondelete="SET NULL")
+    )
+    locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    lock_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    lock_prevents_download: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false"
+    )
     updated_by: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("dms.users.id", ondelete="SET NULL")
     )
@@ -88,6 +97,11 @@ class Folder(Base):
         ForeignKey("dms.users.id", ondelete="SET NULL")
     )
     delete_batch_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    # A user chose "delete permanently": hidden from their trash, still recoverable by an administrator.
+    purge_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    purge_requested_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("dms.users.id", ondelete="SET NULL")
+    )
     row_version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
     created_at: Mapped[datetime] = created_at_col()
     updated_at: Mapped[datetime] = updated_at_col()
@@ -152,6 +166,9 @@ class Document(Base):
     )
     locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     lock_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    lock_prevents_download: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false"
+    )
     latest_version_number: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     status: Mapped[str] = mapped_column(String(32), default=DocumentStatus.PROCESSING.value)
     classification: Mapped[str] = mapped_column(
@@ -165,6 +182,11 @@ class Document(Base):
         ForeignKey("dms.users.id", ondelete="SET NULL")
     )
     delete_batch_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    # A user chose "delete permanently": hidden from their trash, still recoverable by an administrator.
+    purge_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    purge_requested_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("dms.users.id", ondelete="SET NULL")
+    )
     row_version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
     created_at: Mapped[datetime] = created_at_col()
     updated_at: Mapped[datetime] = updated_at_col()

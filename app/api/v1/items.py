@@ -126,7 +126,7 @@ def folder_properties(folder_id: uuid.UUID, db: DbSession, authz: Authz) -> Item
 def lock_document(
     document_id: uuid.UUID, db: DbSession, authz: Authz, body: LockIn | None = None
 ) -> LockOut:
-    return locks.lock_document(db, authz, document_id, body.minutes if body else None)
+    return locks.lock_document(db, authz, document_id, body)
 
 
 @router.delete(
@@ -136,6 +136,28 @@ def lock_document(
 )
 def unlock_document(document_id: uuid.UUID, db: DbSession, authz: Authz) -> Response:
     locks.unlock_document(db, authz, document_id)
+    return Response(status_code=204)
+
+
+@router.post(
+    "/folders/{folder_id}/lock",
+    response_model=LockOut,
+    status_code=201,
+    summary="Lock a folder (others cannot rename, move or delete it)",
+)
+def lock_folder(
+    folder_id: uuid.UUID, db: DbSession, authz: Authz, body: LockIn | None = None
+) -> LockOut:
+    return locks.lock_folder(db, authz, folder_id, body)
+
+
+@router.delete(
+    "/folders/{folder_id}/lock",
+    status_code=204,
+    summary="Unlock a folder; administrators may break a lock",
+)
+def unlock_folder(folder_id: uuid.UUID, db: DbSession, authz: Authz) -> Response:
+    locks.unlock_folder(db, authz, folder_id)
     return Response(status_code=204)
 
 
