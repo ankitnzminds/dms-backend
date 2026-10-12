@@ -179,11 +179,20 @@ def execute_run(factory: sessionmaker[Session], run_id: uuid.UUID) -> str:
                 resource=ctx_stored.get("resource"),
                 actor_id=uuid.UUID(ctx_stored["actor_id"]) if ctx_stored.get("actor_id") else None,
                 prior_output=dict(nr.output or {}),
+                trigger=dict(ctx_stored),
+                approvals=dict(getattr(version, "approval_definitions", None) or {}),
             )
             try:
                 if dry and node["type"] not in actions.PURE:
                     spec = ACTIONS[node["type"]]
-                    result = actions.NodeResult(output={"dry_run": True, "would": spec.label})
+                    # a branching step previews its first exit (the happy path) so the dry run
+                    # shows what comes next; nothing really happens
+                    first = spec.outputs[0] if spec.outputs else None
+                    result = actions.NodeResult(
+                        output={"dry_run": True, "would": spec.label}
+                        | ({"simulated_exit": first} if first else {}),
+                        branch=first,
+                    )
                 else:
                     result = actions.HANDLERS[node["type"]](c, node.get("params") or {})
             except actions.ActionFailed as e:
@@ -320,6 +329,11 @@ def _rebuild_context(db: Session, run: AutomationRun, stored: dict[str, Any]) ->
             pair = triggers.user_context(db, run.organization_id, rid, ctx, None)
             if pair:
                 ctx = pair[0]
+    if stored.get("request_id"):
+        ctx["request"] = {
+            "id": stored["request_id"],
+            "actions": stored.get("request_actions", ""),
+        }
     for k, v in (run.variables or {}).items():
         ctx.setdefault("vars", {})[k] = v
     return ctx
@@ -335,6 +349,32 @@ def resume_waiting(factory: sessionmaker[Session]) -> list[uuid.UUID]:
         )
     queue_runs(factory, ids)
     return ids
+
+
+def wake_for_approval(db: Session, workflow_run_id: uuid.UUID) -> int:
+    """An approval just finished: re-queue the automation runs parked on it right away, instead
+    of waiting for the next maintenance pass."""
+    from app.modules.outbox import service as outbox
+
+    ids = set(
+        db.scalars(
+            select(AutomationNodeRun.run_id).where(
+                AutomationNodeRun.status == "waiting",
+                AutomationNodeRun.output["approval_run_id"].astext == str(workflow_run_id),
+            )
+        )
+    )
+    for rid in ids:
+        run = db.get(AutomationRun, rid)
+        if run is not None and run.status == "waiting":
+            outbox.enqueue(
+                db,
+                organization_id=run.organization_id,
+                event_type="automation.run",
+                aggregate_type="automation_run",
+                aggregate_id=rid,
+            )
+    return len(ids)
 
 
 def retry_run(db: Session, run: AutomationRun) -> None:

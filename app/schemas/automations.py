@@ -29,7 +29,7 @@ class NodeDef(ApiModel):
 class EdgeDef(ApiModel):
     from_: str = Field(alias="from", pattern=r"^[a-z0-9_-]{1,32}$")
     to: str = Field(pattern=r"^[a-z0-9_-]{1,32}$")
-    branch: Literal["true", "false"] | None = None
+    branch: str | None = Field(None, pattern=r"^[a-z_]{1,16}$")
 
 
 class GraphDef(ApiModel):
@@ -49,6 +49,9 @@ class ValidationReport(ApiModel):
     needs_high_risk_confirmation: bool = False
 
 
+BindingMode = Literal["additive", "exclusive"]
+
+
 class AutomationCreate(ApiModel):
     name: str = Field(min_length=1, max_length=200)
     description: str | None = Field(None, max_length=1000)
@@ -64,6 +67,8 @@ class AutomationCreate(ApiModel):
         False,
         description="Canvas: create an empty/unfinished draft. Cannot be combined with activate.",
     )
+    binding_mode: BindingMode = "additive"
+    priority: int = Field(0, ge=0, le=1000)
 
 
 class AutomationUpdate(ApiModel):
@@ -75,6 +80,8 @@ class AutomationUpdate(ApiModel):
     allow_invalid: bool = Field(
         False, description="Canvas autosave: store the draft even if it does not validate yet."
     )
+    binding_mode: BindingMode | None = None
+    priority: int | None = Field(None, ge=0, le=1000)
 
 
 class PublishRequest(ApiModel):
@@ -104,6 +111,8 @@ class AutomationOut(ApiModel):
     published_version: int | None
     has_unpublished_changes: bool
     high_risk: bool
+    binding_mode: BindingMode
+    priority: int
     row_version: int
     created_by_email: str | None
     created_at: datetime
@@ -163,9 +172,13 @@ class CatalogueEntry(ApiModel):
     provides: Literal["file", "folder", "user", "none"] | None = Field(
         None, description="What a condition hands to the steps (conditions only)."
     )
-    needs_resource: Literal["none", "file", "file_or_folder"] | None = None
+    needs_resource: Literal["none", "file", "file_or_folder", "access_request"] | None = None
     wizard: bool = True
     notes: list[str] = []
+    outputs: list[str] = Field(
+        default_factory=list,
+        description="Named exits of a branching step (edge labels); empty for a plain step.",
+    )
 
 
 class CatalogueOut(ApiModel):
@@ -173,3 +186,48 @@ class CatalogueOut(ApiModel):
     conditions: list[CatalogueEntry]
     actions: list[CatalogueEntry]
     expression_help: list[str]
+
+
+# ---------------------------------------------------------------- manual start / user side
+class StartableOut(ApiModel):
+    id: uuid.UUID
+    name: str
+    description: str | None
+    instructions: str | None = None
+    who_can_start: Literal["editors", "admins"]
+
+
+class StartRequest(ApiModel):
+    resource_type: Literal["document", "folder"]
+    resource_id: uuid.UUID
+    note: str | None = Field(None, max_length=300)
+
+
+class StartedOut(ApiModel):
+    run_id: uuid.UUID
+    status: RunStatus
+
+
+class RunStepOut(ApiModel):
+    label: str
+    status: NodeStatus
+    branch: str | None = None
+    error: str | None = None
+    finished_at: datetime | None = None
+
+
+class RunSummaryOut(ApiModel):
+    """What a person who is not an administrator may see about a run: no parameters, no raw output."""
+
+    id: uuid.UUID
+    automation_name: str
+    status: RunStatus
+    started_by_email: str | None
+    resource_name: str | None
+    resource_type: str | None
+    resource_id: uuid.UUID | None
+    note: str | None = None
+    error: str | None
+    created_at: datetime
+    finished_at: datetime | None
+    steps: list[RunStepOut] = []

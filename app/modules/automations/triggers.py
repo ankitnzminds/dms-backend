@@ -137,6 +137,12 @@ def event_context(db: Session, ev: AuditEvent) -> tuple[dict[str, Any], dict[str
         stored["actor_id"] = str(actor_id) if actor_id else None
         ctx = {**base, **file_context(db, org, doc, version)}
         stored["resource"] = {"type": "document", "id": str(doc.id), "name": doc.name}
+        if ev.action == "access_request.created":
+            meta = ev.event_metadata or {}
+            asked = ", ".join(str(x) for x in meta.get("actions") or [])
+            ctx["request"] = {"id": str(meta.get("request_id") or ""), "actions": asked}
+            stored["request_id"] = str(meta.get("request_id") or "") or None
+            stored["request_actions"] = asked
         return ctx, stored
     if ev.resource_type == "folder" and ev.resource_id:
         folder = db.scalar(
@@ -211,6 +217,8 @@ def _in_scope(params: dict[str, Any], ctx: dict[str, Any]) -> bool:
 def condition_matches(spec: ConditionSpec, params: dict[str, Any], ctx: dict[str, Any]) -> bool:
     """Static filters for event triggers: version semantics, size thresholds, scope, expression."""
     f = ctx.get("file") or {}
+    if spec.key == "access_request_created" and not f:
+        return False  # requests for folders do not start workflows
     if spec.key == "file_created" and f.get("version_number") != 1:
         return False
     if spec.key == "file_updated" and (f.get("version_number") or 0) < 2:
@@ -306,6 +314,33 @@ def _live_automations(
     return [(a, v) for a, v in db.execute(stmt).all()]
 
 
+def specificity(params: dict[str, Any]) -> float:
+    """How narrowly a trigger is scoped: deeper folder path, extension and expression filters."""
+    path = (params.get("path") or "").strip("/")
+    score = float(len(path.split("/"))) if path else 0.0
+    if params.get("extensions"):
+        score += 0.5
+    if params.get("expression"):
+        score += 0.25
+    return score
+
+
+def resolve_bindings(
+    matched: list[tuple[Automation, AutomationVersion, dict[str, Any]]],
+) -> list[tuple[Automation, AutomationVersion]]:
+    """Additive workflows always run. Of the exclusive ones only the most specific scope runs
+    (priority, then oldest, breaks a tie), so a folder-specific rule can replace a general one."""
+    chosen = [(a, v) for a, v, _ in matched if a.binding_mode != "exclusive"]
+    exclusive = [(a, v, prm) for a, v, prm in matched if a.binding_mode == "exclusive"]
+    if exclusive:
+        a, v, _ = max(
+            exclusive,
+            key=lambda m: (specificity(m[2]), m[0].priority, -m[0].created_at.timestamp()),
+        )
+        chosen.append((a, v))
+    return chosen
+
+
 def handle_event(factory: sessionmaker[Session], audit_event_id: uuid.UUID) -> list[uuid.UUID]:
     """Worker side of ``dispatch``: create (idempotently) the runs this event triggers."""
     created: list[uuid.UUID] = []
@@ -314,6 +349,7 @@ def handle_event(factory: sessionmaker[Session], audit_event_id: uuid.UUID) -> l
         if ev is None or ev.organization_id is None:
             return created
         resolved = event_context(db, ev)
+        matched: list[tuple[Automation, AutomationVersion, dict[str, Any]]] = []
         for a, v in _live_automations(db, ev.organization_id):
             spec = CONDITIONS.get(v.trigger.get("key", ""))
             if spec is None or ev.action not in spec.audit_actions or not spec.supported:
@@ -321,10 +357,13 @@ def handle_event(factory: sessionmaker[Session], audit_event_id: uuid.UUID) -> l
             a.last_checked_at = datetime.now(UTC)
             if resolved is None:
                 continue
-            ctx, stored = resolved
-            if not condition_matches(spec, v.trigger.get("params") or {}, ctx):
-                continue
-            run_id = create_run(db, a, v, event_key=f"audit:{ev.id}", trigger_context=stored)
+            ctx, _ = resolved
+            params = v.trigger.get("params") or {}
+            if condition_matches(spec, params, ctx):
+                matched.append((a, v, params))
+        for a, v in resolve_bindings(matched):
+            assert resolved is not None
+            run_id = create_run(db, a, v, event_key=f"audit:{ev.id}", trigger_context=resolved[1])
             if run_id:
                 created.append(run_id)
         db.commit()

@@ -19,7 +19,7 @@ def _local(raw: str, tz: ZoneInfo) -> datetime:
 def next_fire(trigger: dict[str, Any], now: datetime, *, first: bool = False) -> datetime | None:
     """Next time the scheduler should evaluate this trigger; None for event-driven triggers."""
     spec = CONDITIONS.get(trigger.get("key", ""))
-    if spec is None or spec.kind == "event":
+    if spec is None or spec.kind in ("event", "manual"):
         return None
     p = trigger.get("params") or {}
     if spec.kind == "scan":

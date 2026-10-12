@@ -67,7 +67,7 @@ class TestCatalogueAndValidation:
         c = env["owner"].get(f"{A}/automations/catalogue").json()
         conds = {x["key"]: x for x in c["conditions"]}
         acts = {x["key"]: x for x in c["actions"]}
-        assert len(conds) == 20 and len(c["conditions"]) == 20
+        assert len(conds) == 24 and len(c["conditions"]) == 24
         assert {"file_created", "periodic_schedule", "account_expiring", "last_login_age"} <= set(
             conds
         )

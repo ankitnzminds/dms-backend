@@ -55,6 +55,12 @@ class Automation(Base):
         JSONB, default=dict, server_default=text("'{}'::jsonb")
     )
     published_version_id: Mapped[uuid.UUID | None] = mapped_column()
+    # When several workflows match the same event: additive ones all run; among the exclusive ones
+    # only the most specific scope runs (priority breaks ties).
+    binding_mode: Mapped[str] = mapped_column(
+        String(16), default="additive", server_default="additive"
+    )
+    priority: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     row_version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("dms.users.id", ondelete="SET NULL")
@@ -78,6 +84,9 @@ class Automation(Base):
         UniqueConstraint("id", "organization_id", name="uq_automations_id_org"),
         Index("uq_automations_name", "organization_id", func.lower(name), unique=True),
         CheckConstraint(check_in("status", AUTOMATION_STATUSES, "status"), name="status"),
+        CheckConstraint(
+            check_in("binding_mode", ["additive", "exclusive"], "bm"), name="binding_mode"
+        ),
         CheckConstraint("NOT enabled OR status = 'published'", name="enabled_requires_published"),
         Index("ix_automations_due", "organization_id", "enabled", "next_check_at"),
     )
@@ -101,6 +110,10 @@ class AutomationVersion(Base):
     )
     high_risk_confirmed: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default="false"
+    )
+    # {node id: approval workflow definition id} for the Human approval steps, generated at publish.
+    approval_definitions: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, default=dict, server_default=text("'{}'::jsonb")
     )
     created_at: Mapped[datetime] = created_at_col()
 

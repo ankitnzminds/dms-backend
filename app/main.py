@@ -40,6 +40,7 @@ from app.api.v1 import (
     team_folders,
     uploads,
     wopi,
+    workflow_studio,
     workflows,
 )
 from app.core.config import get_settings
@@ -133,8 +134,10 @@ def create_app() -> FastAPI:
         admin,
         admin_users,
         automations,
+        workflow_studio,
     ):
         v1.include_router(module.router)
+    v1.include_router(workflow_studio.admin_router)
     v1.include_router(shares.links_router)
     if settings.auth_provider == "local" and settings.app_env in ("development", "test"):
         from app.api.v1 import dev

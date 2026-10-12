@@ -65,15 +65,25 @@ _PROVIDES = {
         "file_created_or_updated",
         "upload_size_threshold",
         "download_size_threshold",
+        "manual_file",
+        "access_request_created",
+        "file_metadata_updated",
     },
-    "folder": {"folder_created", "folder_deleted"},
+    "folder": {"folder_created", "folder_deleted", "manual_folder"},
     "user": {"user_created", "account_age", "last_login_age", "account_expiring"},
 }
+# triggers that carry an access request (the Grant / Deny access steps answer it)
+_REQUEST_TRIGGERS = frozenset({"access_request_created"})
 
 
 def require_admin(p: Principal) -> None:
     if not p.is_admin:
         raise ForbiddenError("Administrator access is required.")
+
+
+def _exit_message(label: str, exits: tuple[str, ...]) -> str:
+    names = " and/or ".join(f"'{e}'" for e in exits)
+    return f"'{label}' outputs must be labelled {names}, once each."
 
 
 def provides(trigger_key: str) -> str:
@@ -161,6 +171,12 @@ def validate_definition(
                     n.id,
                     f"'{aspec.label}' needs a file or folder, but this condition does not provide one.",
                 )
+            if aspec.needs_resource == "access_request" and trigger.key not in _REQUEST_TRIGGERS:
+                bad(
+                    n.id,
+                    f"'{aspec.label}' answers an access request, so the workflow must start with "
+                    "'If someone requests access to a file'.",
+                )
         _validate_action_refs(
             db, p, n.id, n.type, parsed.model_dump(mode="json"), action_names, bad
         )
@@ -175,14 +191,30 @@ def validate_definition(
         ends.setdefault(edge.from_, []).append((edge.to, edge.branch))
     for nid, outs in ends.items():
         node = by_id[nid]
-        if node.type == "condition":
+        node_spec = ACTIONS.get(node.type)
+        exits = node_spec.outputs if node_spec else ()
+        if exits:
             branches = [b for _, b in outs]
-            if None in branches or len(branches) != len(set(branches)):
-                bad(nid, "Condition outputs must be labelled 'true' and/or 'false', once each.")
+            if (
+                None in branches
+                or len(branches) != len(set(branches))
+                or any(b not in exits for b in branches)
+            ):
+                bad(nid, _exit_message(node_spec.label if node_spec else node.type, exits))
         elif node.type == "end":
             bad(nid, "The End node cannot have outgoing connections.")
         elif len(outs) > 1 or outs[0][1] is not None:
             bad(nid, "This step has one outgoing connection. Use a Condition to branch.")
+    for n in graph.nodes:
+        node_spec = ACTIONS.get(n.type)
+        if node_spec and node_spec.outputs and n.type != "condition":
+            labelled = {b for _, b in ends.get(n.id, [])}
+            if node_spec.outputs[0] not in labelled:
+                bad(
+                    n.id,
+                    f"Connect the '{node_spec.outputs[0]}' exit of '{node_spec.label}' "
+                    "to the next step.",
+                )
 
     if len(starts) == 1:
         start = starts[0].id
@@ -447,6 +479,8 @@ def to_out(db: Session, a: Automation) -> AutomationOut:
         published_version=version.version_number if version else None,
         has_unpublished_changes=unpublished and a.status != "draft",
         high_risk=any(n.get("type") in HIGH_RISK for n in live_graph.get("nodes", [])),
+        binding_mode=a.binding_mode,  # type: ignore[arg-type]
+        priority=a.priority,
         row_version=a.row_version,
         created_by_email=creator.email if creator else None,
         created_at=a.created_at,
@@ -537,6 +571,7 @@ def catalogue() -> CatalogueOut:
                 needs_resource=a.needs_resource,
                 wizard=a.wizard,
                 notes=a.notes,
+                outputs=list(a.outputs),
             )
             for a in ACTIONS.values()
         ],
@@ -602,6 +637,8 @@ def create(db: Session, p: Principal, body: AutomationCreate) -> AutomationOut:
         editor_mode=body.editor_mode,
         draft_trigger=trig,
         draft_graph=graph,
+        binding_mode=body.binding_mode,
+        priority=body.priority,
         created_by=p.user_id,
         updated_by=p.user_id,
     )
@@ -645,6 +682,10 @@ def update(
         a.name = _clean_name(db, p, body.name, a.id)
     if body.description is not None:
         a.description = body.description.strip() or None
+    if body.binding_mode is not None:
+        a.binding_mode = body.binding_mode
+    if body.priority is not None:
+        a.priority = body.priority
     if body.trigger is not None or body.graph is not None:
         trigger = body.trigger or TriggerDef.model_validate(a.draft_trigger)
         graph = body.graph or GraphDef.model_validate(a.draft_graph)
@@ -668,6 +709,54 @@ def update(
     )
     db.commit()
     return to_out(db, a)
+
+
+def _compile_approvals(db: Session, p: Principal, a: Automation) -> dict[str, str]:
+    """Turn every Human approval step into a real approval workflow on the existing engine.
+
+    One definition per (workflow, step) with a stable name: republishing adds a new immutable
+    version, so approvals already in flight keep the people they started with.
+    """
+    from app.db.models import WorkflowDefinition
+    from app.modules.workflows import service as wf
+    from app.schemas.workflows import AssigneeSpec, StepSpec, WorkflowDefinitionIn
+
+    out: dict[str, str] = {}
+    for n in (a.draft_graph or {}).get("nodes", []):
+        if n.get("type") != "human_approval":
+            continue
+        prm = n.get("params") or {}
+        people = [AssigneeSpec(type="user", id=uuid.UUID(x)) for x in prm.get("user_ids", [])]
+        people += [AssigneeSpec(type="group", id=uuid.UUID(x)) for x in prm.get("group_ids", [])]
+        if prm.get("completion") == "sequence":
+            steps = [
+                StepSpec(name=f"Approver {i + 1}", assignees=[who]) for i, who in enumerate(people)
+            ]
+        else:
+            steps = [StepSpec(name="Approval", assignees=people, rule=prm.get("completion", "any"))]
+        name = f"Workflow studio: {a.id.hex[:8]}/{n['id']}"
+        existing = db.scalar(
+            select(WorkflowDefinition).where(
+                WorkflowDefinition.organization_id == p.organization_id,
+                WorkflowDefinition.name == name,
+                WorkflowDefinition.archived_at.is_(None),
+            )
+        )
+        if existing is not None:
+            definition_id = wf.add_version(db, p, existing.id, steps).id
+        else:
+            definition_id = wf.create_definition(
+                db,
+                p,
+                WorkflowDefinitionIn(
+                    name=name,
+                    description=f'Generated from the workflow "{a.name}". '
+                    "Change it in the workflow studio.",
+                    steps=steps,
+                ),
+            ).id
+        out[n["id"]] = str(definition_id)
+    return out
 
 
 def _publish(
@@ -703,6 +792,7 @@ def _publish(
         graph=a.draft_graph,
         published_by=p.user_id,
         high_risk_confirmed=report.needs_high_risk_confirmation,
+        approval_definitions=_compile_approvals(db, p, a),
     )
     db.add(v)
     db.flush()
@@ -813,6 +903,8 @@ def duplicate(db: Session, p: Principal, automation_id: uuid.UUID) -> Automation
         editor_mode=a.editor_mode,
         draft_trigger=a.draft_trigger,
         draft_graph=a.draft_graph,
+        binding_mode=a.binding_mode,
+        priority=a.priority,
         created_by=p.user_id,
         updated_by=p.user_id,
     )

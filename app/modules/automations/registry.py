@@ -18,7 +18,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 SCHEMA_VERSION = 1
 
-ConditionKind = Literal["event", "timer", "scan"]
+ConditionKind = Literal["event", "timer", "scan", "manual"]
 Days = Annotated[int, Field(ge=1, le=3650)]
 Pattern = Annotated[str, Field(min_length=1, max_length=200)]
 
@@ -76,6 +76,21 @@ class FolderEvent(Scope):
 
 class NoParams(_Params):
     pass
+
+
+WhoCanStart = Literal["editors", "admins"]
+_WHO = "Who may start it: anyone who can edit the item, or administrators only."
+_INSTRUCTIONS = "Shown to the person who starts it (what will happen, what to prepare)."
+
+
+class ManualFile(FileEvent):
+    who_can_start: WhoCanStart = Field("editors", description=_WHO)
+    instructions: str | None = Field(None, max_length=300, description=_INSTRUCTIONS)
+
+
+class ManualFolder(FolderEvent):
+    who_can_start: WhoCanStart = Field("editors", description=_WHO)
+    instructions: str | None = Field(None, max_length=300, description=_INSTRUCTIONS)
 
 
 class SizeThreshold(FileEvent):
@@ -158,6 +173,11 @@ FILE_VARS = {
     "actor.email": "Who did it (empty for system events)",
     "event.action": "The audit action name",
 }
+REQUEST_VARS = {
+    **FILE_VARS,
+    "request.id": "The access request",
+    "request.actions": "What was asked for, comma-separated (e.g. view, download)",
+}
 FOLDER_VARS = {
     "folder.name": "Folder name",
     "folder.path": "Full path",
@@ -210,6 +230,52 @@ CONDITIONS: dict[str, ConditionSpec] = {
             {},
             supported=False,
             unsupported_reason="There are no desktop or mobile clients and no device registry yet.",
+        ),
+        ConditionSpec(
+            "manual_file",
+            "Started by a user on a file",
+            "manual",
+            ManualFile,
+            FILE_VARS,
+            "A person starts this workflow from a file's menu. Nothing runs by itself.",
+            {"path": "/Contracts", "who_can_start": "editors"},
+            observation="Appears under 'Start workflow' on files the person can edit and that "
+            "match the scope. Steps run as the person who published the workflow.",
+        ),
+        ConditionSpec(
+            "manual_folder",
+            "Started by a user on a folder",
+            "manual",
+            ManualFolder,
+            FOLDER_VARS,
+            "A person starts this workflow from a folder's menu. Nothing runs by itself.",
+            {"path": "/Projects", "who_can_start": "editors"},
+            observation="Appears under 'Start workflow' on folders the person can add to and "
+            "that match the scope. Steps run as the person who published the workflow.",
+        ),
+        ConditionSpec(
+            "access_request_created",
+            "If someone requests access to a file",
+            "event",
+            FileEvent,
+            REQUEST_VARS,
+            "Fires when a person asks for more access to a file (for example to download or edit "
+            "it). Use Grant access or Deny access to answer it, or Human approval to ask "
+            "someone first.",
+            {"path": "/Finance"},
+            ("access_request.created",),
+            observation="Files only: requests for folders do not start workflows yet. "
+            "Grant/Deny act as the person who published the workflow and need Manage access.",
+        ),
+        ConditionSpec(
+            "file_metadata_updated",
+            "If a file's details are edited",
+            "event",
+            FileEvent,
+            FILE_VARS,
+            "Fires when someone changes a file's metadata or classification.",
+            {"path": "/Contracts"},
+            ("document.metadata_updated",),
         ),
         ConditionSpec(
             "file_created",
@@ -501,6 +567,42 @@ class WaitForApproval(_Params):
     note: str = Field("", max_length=500)
 
 
+class HumanApproval(_Params):
+    user_ids: list[uuid.UUID] = Field(default_factory=list, max_length=20)
+    group_ids: list[uuid.UUID] = Field(default_factory=list, max_length=10)
+    completion: Literal["any", "all", "sequence"] = Field(
+        "any",
+        description="any = the first approval decides; all = everyone must approve; "
+        "sequence = asked one after another.",
+    )
+    title: str = Field(
+        "Approve {file.name}", min_length=1, max_length=200, description="Placeholders allowed."
+    )
+    instructions: str = Field("", max_length=500)
+    timeout_days: Annotated[int, Field(ge=1, le=365)] | None = Field(
+        None, description="No decision by then: take the 'timed out' exit."
+    )
+
+    @model_validator(mode="after")
+    def _some(self) -> HumanApproval:
+        if not (self.user_ids or self.group_ids):
+            raise ValueError("Choose at least one person or group to ask.")
+        return self
+
+
+class GrantAccess(_Params):
+    actions: list[Literal["view", "preview", "download", "comment"]] = Field(
+        default_factory=list,
+        description="Leave empty to grant everything that was asked for.",
+    )
+    expires_in_days: Annotated[int, Field(ge=1, le=365)] | None = 30
+    reason: str = Field("", max_length=500)
+
+
+class DenyAccess(_Params):
+    reason: str = Field("", max_length=500, description="Told to the person who asked.")
+
+
 class AssignVariable(_Params):
     name: str = Field(..., pattern=r"^[a-z][a-z0-9_]{0,31}$")
     expression: str = Field(..., min_length=1, max_length=500)
@@ -519,10 +621,12 @@ class ActionSpec:
     example: dict[str, Any]
     risk: Literal["low", "high"] = "low"
     wizard: bool = True  # offered in the IF/THEN wizard
-    needs_resource: Literal["none", "file", "file_or_folder"] = "none"
+    needs_resource: Literal["none", "file", "file_or_folder", "access_request"] = "none"
     supported: bool = True
     unsupported_reason: str | None = None
     notes: list[str] = field(default_factory=list)
+    # Named exits for a branching step (edges are labelled with these). Empty = one plain exit.
+    outputs: tuple[str, ...] = ()
 
 
 ACTIONS: dict[str, ActionSpec] = {
@@ -665,6 +769,47 @@ ACTIONS: dict[str, ActionSpec] = {
             needs_resource="file",
         ),
         ActionSpec(
+            "human_approval",
+            "Human approval",
+            HumanApproval,
+            "Asks people to approve the file and pauses this run. The run continues down the "
+            "approved, rejected or timed-out exit, so each outcome can do something different.",
+            {
+                "user_ids": [],
+                "completion": "any",
+                "title": "Approve {file.name}",
+                "timeout_days": 7,
+            },
+            wizard=False,
+            needs_resource="file",
+            outputs=("approved", "rejected", "timeout"),
+            notes=[
+                "The asked people see it under My approvals and can approve, reject or delegate.",
+                "Only one approval can be open on a file at a time.",
+            ],
+        ),
+        ActionSpec(
+            "grant_access",
+            "Grant access",
+            GrantAccess,
+            "Approves the access request that started this run and gives the person the "
+            "access they asked for (read-level only, expiring by default).",
+            {"actions": [], "expires_in_days": 30},
+            risk="high",
+            wizard=False,
+            needs_resource="access_request",
+            notes=["Runs as the publisher: they need Manage access on the file."],
+        ),
+        ActionSpec(
+            "deny_access",
+            "Deny access",
+            DenyAccess,
+            "Rejects the access request that started this run and tells the person why.",
+            {"reason": "This file is not shared outside the team."},
+            wizard=False,
+            needs_resource="access_request",
+        ),
+        ActionSpec(
             "assign_variable",
             "Assign Variable Value",
             AssignVariable,
@@ -679,6 +824,7 @@ ACTIONS: dict[str, ActionSpec] = {
             "Branches on an expression: edges labelled true / false.",
             {"expression": "file.extension == 'pdf'"},
             wizard=False,
+            outputs=("true", "false"),
         ),
     ]
 }

@@ -24,6 +24,7 @@ from app.core.config import get_settings
 from app.core.errors import AppError, ConflictError
 from app.db.enums import AuditOutcome, ResourceType
 from app.db.models import (
+    AccessRequest,
     Document,
     DocumentVersion,
     Folder,
@@ -67,6 +68,8 @@ class Ctx:
     resource: dict[str, Any] | None
     actor_id: uuid.UUID | None
     prior_output: dict[str, Any]
+    trigger: dict[str, Any] = field(default_factory=dict)  # the stored trigger context
+    approvals: dict[str, Any] = field(default_factory=dict)  # node id -> approval definition id
 
     @property
     def resource_id(self) -> uuid.UUID | None:
@@ -502,6 +505,117 @@ def wait_for_approval(c: Ctx, p: dict[str, Any]) -> NodeResult:
     return NodeResult(status="waiting", output={"approval_run_id": str(started.id)})
 
 
+def human_approval(c: Ctx, p: dict[str, Any]) -> NodeResult:
+    """Ask people to approve the file; the run leaves by the approved / rejected / timeout exit."""
+    from app.modules.workflows import service as workflows
+
+    prior = c.prior_output.get("approval_run_id")
+    if prior:
+        run = c.db.get(WorkflowRun, uuid.UUID(prior))
+        if run is None:
+            raise ActionFailed("The approval run disappeared.")
+        if run.state == "approved":
+            return NodeResult(output={**c.prior_output, "decision": "approved"}, branch="approved")
+        if run.state in ("rejected", "cancelled"):
+            return NodeResult(output={**c.prior_output, "decision": run.state}, branch="rejected")
+        asked = c.prior_output.get("asked_at")
+        days = p.get("timeout_days")
+        if (
+            days
+            and asked
+            and datetime.now(UTC) > datetime.fromisoformat(asked) + timedelta(days=int(days))
+        ):
+            try:
+                workflows.cancel_run(c.db, c.principal, run.id, "Timed out waiting for a decision.")
+            except AppError:
+                pass  # decided in the meantime: the next pass reads the real decision
+            else:
+                return NodeResult(
+                    output={**c.prior_output, "decision": "timeout"}, branch="timeout"
+                )
+        return NodeResult(status="waiting", output=c.prior_output)
+    definition = c.approvals.get(c.node_id)
+    if not definition:
+        raise ActionFailed("Publish the workflow again: this step has no approval set up.")
+    doc = _document(c)
+    note = render(p.get("title") or "Approval", c.expr_ctx)
+    if p.get("instructions"):
+        note = f"{note}: {render(p['instructions'], c.expr_ctx)}"
+    if (c.trigger or {}).get("note"):  # what the person who started it wrote
+        note = f"{note} (note: {c.trigger['note']})"
+    try:
+        started = workflows.start_run(c.db, c.authz, doc.id, uuid.UUID(definition), note[:500])
+    except AppError as e:
+        raise ActionFailed(e.message) from e
+    return NodeResult(
+        status="waiting",
+        output={"approval_run_id": str(started.id), "asked_at": datetime.now(UTC).isoformat()},
+    )
+
+
+_GRANTABLE = frozenset({"view", "preview", "download", "comment"})
+
+
+def _access_request(c: Ctx) -> AccessRequest:
+    rid = (c.trigger or {}).get("request_id")
+    req = c.db.get(AccessRequest, uuid.UUID(rid)) if rid else None
+    if req is None or req.organization_id != c.org:
+        raise ActionFailed("This step answers an access request, but there is none.")
+    return req
+
+
+def grant_access(c: Ctx, p: dict[str, Any]) -> NodeResult:
+    from app.modules.access_requests import service as requests
+    from app.schemas.chat import AccessRequestDecision
+
+    req = _access_request(c)
+    if req.status != "pending":
+        return NodeResult(status="skipped", output={"already": req.status})
+    wanted = set(p.get("actions") or []) or set(req.requested_actions)
+    grant = sorted(wanted & _GRANTABLE & set(req.requested_actions))
+    if not grant:
+        raise ActionFailed("The request asks only for access this step is not allowed to grant.")
+    expires = (
+        datetime.now(UTC) + timedelta(days=int(p["expires_in_days"]))
+        if p.get("expires_in_days")
+        else None
+    )
+    try:
+        requests.decide(
+            c.db,
+            c.authz,
+            req.id,
+            AccessRequestDecision(
+                decision="approve",
+                reason=(p.get("reason") or None),
+                actions=grant,  # type: ignore[arg-type]
+                expires_at=expires,
+            ),
+        )
+    except AppError as e:
+        raise ActionFailed(e.message) from e
+    return NodeResult(output={"decision": "approved", "granted": grant})
+
+
+def deny_access(c: Ctx, p: dict[str, Any]) -> NodeResult:
+    from app.modules.access_requests import service as requests
+    from app.schemas.chat import AccessRequestDecision
+
+    req = _access_request(c)
+    if req.status != "pending":
+        return NodeResult(status="skipped", output={"already": req.status})
+    try:
+        requests.decide(
+            c.db,
+            c.authz,
+            req.id,
+            AccessRequestDecision(decision="reject", reason=(p.get("reason") or None)),
+        )
+    except AppError as e:
+        raise ActionFailed(e.message) from e
+    return NodeResult(output={"decision": "rejected"})
+
+
 def assign_variable(c: Ctx, p: dict[str, Any]) -> NodeResult:
     names = _names(c)
     try:
@@ -541,6 +655,9 @@ HANDLERS = {
     "set_metadata": set_metadata,
     "assign_acl": assign_acl,
     "wait_for_approval": wait_for_approval,
+    "human_approval": human_approval,
+    "grant_access": grant_access,
+    "deny_access": deny_access,
     "assign_variable": assign_variable,
     "condition": condition,
 }
