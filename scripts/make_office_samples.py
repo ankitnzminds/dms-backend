@@ -84,7 +84,11 @@ def make_docx(path: Path) -> None:
     h.runs[0].font.name = "Georgia"
     p = doc.add_paragraph()
     r = p.add_run("Fonts: ")
-    for name, color in (("Times New Roman", "1F3864"), ("Courier New", "C00000"), ("Arial", "548235")):
+    for name, color in (
+        ("Times New Roman", "1F3864"),
+        ("Courier New", "C00000"),
+        ("Arial", "548235"),
+    ):
         run = p.add_run(f"{name} ")
         run.font.name = name
         run.font.color.rgb = RGBColor.from_string(color)
@@ -96,7 +100,10 @@ def make_docx(path: Path) -> None:
 
     doc.add_heading("1. Results", 1)
     for i in range(1, 4):
-        doc.add_paragraph(f"Bullet point number {i} with a longer sentence to wrap across the line.", style="List Bullet")
+        doc.add_paragraph(
+            f"Bullet point number {i} with a longer sentence to wrap across the line.",
+            style="List Bullet",
+        )
     for i in range(1, 3):
         doc.add_paragraph(f"Numbered item {i}", style="List Number")
 
@@ -123,7 +130,9 @@ def make_docx(path: Path) -> None:
     doc.add_paragraph().add_run().add_break(WD_BREAK.PAGE)
     doc.add_heading("2. Appendix (page 2)", 1)
     for i in range(30):
-        doc.add_paragraph(f"Paragraph {i + 1}: " + "Lorem ipsum dolor sit amet, consectetur adipiscing elit. " * 3)
+        doc.add_paragraph(
+            f"Paragraph {i + 1}: " + "Lorem ipsum dolor sit amet, consectetur adipiscing elit. " * 3
+        )
 
     land = doc.add_section()
     land.orientation = WD_ORIENT.LANDSCAPE
@@ -149,7 +158,12 @@ def make_xlsx(path: Path) -> None:
         cell.font = Font(bold=True)
         cell.fill = PatternFill("solid", fgColor="D9E2F3")
         cell.border = Border(top=thin, bottom=thin, left=thin, right=thin)
-    data = [("EMEA", 1250, 1410, 1533, 1720), ("APAC", 980, 1102, 1290, 1350), ("AMER", 2100, 1980, 2230, 2410), ("LATAM", 410, 455, 502, 560)]
+    data = [
+        ("EMEA", 1250, 1410, 1533, 1720),
+        ("APAC", 980, 1102, 1290, 1350),
+        ("AMER", 2100, 1980, 2230, 2410),
+        ("LATAM", 410, 455, 502, 560),
+    ]
     for r, row in enumerate(data, start=3):
         for c, v in enumerate(row, start=1):
             ws.cell(row=r, column=c, value=v)
@@ -163,11 +177,19 @@ def make_xlsx(path: Path) -> None:
     ws["B9"] = "=F3/F7"
     ws["B9"].number_format = "0.0%"
     ws["A10"] = "Top region"
-    ws["B10"] = '=INDEX(A3:A6,MATCH(MAX(F3:F6),F3:F6,0))'
+    ws["B10"] = "=INDEX(A3:A6,MATCH(MAX(F3:F6),F3:F6,0))"
     ws["A11"] = "Status"
     ws["B11"] = '=IF(F7>10000,"On target","Below target")'
-    ws.conditional_formatting.add("F3:F6", CellIsRule(operator="greaterThan", formula=["6000"], fill=PatternFill("solid", bgColor="C6EFCE")))
-    ws.conditional_formatting.add("B3:E6", ColorScaleRule(start_type="min", start_color="F8696B", end_type="max", end_color="63BE7B"))
+    ws.conditional_formatting.add(
+        "F3:F6",
+        CellIsRule(
+            operator="greaterThan", formula=["6000"], fill=PatternFill("solid", bgColor="C6EFCE")
+        ),
+    )
+    ws.conditional_formatting.add(
+        "B3:E6",
+        ColorScaleRule(start_type="min", start_color="F8696B", end_type="max", end_color="63BE7B"),
+    )
     ws.freeze_panes = "B3"
     ws.column_dimensions["A"].width = 22
     for col in "BCDEF":
@@ -189,7 +211,9 @@ def make_xlsx(path: Path) -> None:
     ln.title = "Trend"
     ln.add_data(Reference(ws2, min_col=2, min_row=1, max_row=13), titles_from_data=True)
     ws2.add_chart(ln, "D2")
-    ws2["A16"] = "Wrapped text cell that is long enough to wrap onto several lines in a narrow column."
+    ws2["A16"] = (
+        "Wrapped text cell that is long enough to wrap onto several lines in a narrow column."
+    )
     ws2["A16"].alignment = Alignment(wrap_text=True, vertical="top")
     ws2.column_dimensions["A"].width = 18
     ws2.row_dimensions[16].height = 60
@@ -219,7 +243,9 @@ def make_pptx(path: Path) -> None:
     cd.categories = ["EMEA", "APAC", "AMER", "LATAM"]
     cd.add_series("2025", (5913, 4722, 8720, 1927))
     cd.add_series("2026", (6000, 5200, 9100, 2100))
-    s3.shapes.add_chart(XL_CHART_TYPE.COLUMN_CLUSTERED, PInches(1), PInches(1.6), PInches(8), PInches(5), cd)
+    s3.shapes.add_chart(
+        XL_CHART_TYPE.COLUMN_CLUSTERED, PInches(1), PInches(1.6), PInches(8), PInches(5), cd
+    )
     s4 = prs.slides.add_slide(prs.slide_layouts[6])
     box = s4.shapes.add_textbox(PInches(0.7), PInches(0.5), PInches(8.5), PInches(1))
     box.text_frame.text = "Shapes, table and image"

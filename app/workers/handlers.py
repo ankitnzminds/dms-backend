@@ -394,7 +394,7 @@ def handle_workflow_finished(db: Session, event: OutboxEvent, ctx: WorkerContext
     )
     from app.modules.automations import engine as automation_engine
 
-    automation_engine.wake_for_approval(db, run.id)
+    automation_engine.wake_for_approval(db, run.organization_id, run.id)
     db.commit()
 
 

@@ -516,6 +516,9 @@ def human_approval(c: Ctx, p: dict[str, Any]) -> NodeResult:
             raise ActionFailed("The approval run disappeared.")
         if run.state == "approved":
             return NodeResult(output={**c.prior_output, "decision": "approved"}, branch="approved")
+        if run.state == "cancelled" and run.outcome_comment == TIMEOUT_NOTE:
+            # we closed it ourselves (a crash may have lost the node output): still a timeout
+            return NodeResult(output={**c.prior_output, "decision": "timeout"}, branch="timeout")
         if run.state in ("rejected", "cancelled"):
             return NodeResult(output={**c.prior_output, "decision": run.state}, branch="rejected")
         asked = c.prior_output.get("asked_at")
@@ -526,9 +529,13 @@ def human_approval(c: Ctx, p: dict[str, Any]) -> NodeResult:
             and datetime.now(UTC) > datetime.fromisoformat(asked) + timedelta(days=int(days))
         ):
             try:
-                workflows.cancel_run(c.db, c.principal, run.id, "Timed out waiting for a decision.")
-            except AppError:
+                workflows.cancel_run(c.db, c.principal, run.id, TIMEOUT_NOTE)
+            except ConflictError:
                 pass  # decided in the meantime: the next pass reads the real decision
+            except AppError as e:  # e.g. the publisher may no longer close it: say so, do not hang
+                raise ActionFailed(
+                    f"The approval timed out but could not be closed: {e.message}"
+                ) from e
             else:
                 return NodeResult(
                     output={**c.prior_output, "decision": "timeout"}, branch="timeout"
@@ -553,6 +560,7 @@ def human_approval(c: Ctx, p: dict[str, Any]) -> NodeResult:
     )
 
 
+TIMEOUT_NOTE = "Timed out waiting for a decision."
 _GRANTABLE = frozenset({"view", "preview", "download", "comment"})
 
 

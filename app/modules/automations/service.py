@@ -702,9 +702,11 @@ def update(
         resource_type="automation",
         resource_id=a.id,
         metadata={
-            "draft_only": True,
+            # binding mode and priority take effect at once; the rest waits for a publish
+            "draft_only": body.binding_mode is None and body.priority is None,
             "trigger_changed": body.trigger is not None,
             "graph_changed": body.graph is not None,
+            "binding_changed": body.binding_mode is not None or body.priority is not None,
         },
     )
     db.commit()
@@ -734,16 +736,18 @@ def _compile_approvals(db: Session, p: Principal, a: Automation) -> dict[str, st
             ]
         else:
             steps = [StepSpec(name="Approval", assignees=people, rule=prm.get("completion", "any"))]
-        name = f"Workflow studio: {a.id.hex[:8]}/{n['id']}"
+        name = f"Workflow studio: {a.id.hex}/{n['id']}"
+        # archived ones count too: the name is unique per organization, so bring it back
         existing = db.scalar(
             select(WorkflowDefinition).where(
                 WorkflowDefinition.organization_id == p.organization_id,
-                WorkflowDefinition.name == name,
-                WorkflowDefinition.archived_at.is_(None),
+                func.lower(WorkflowDefinition.name) == name.lower(),
             )
         )
         if existing is not None:
-            definition_id = wf.add_version(db, p, existing.id, steps).id
+            existing.archived_at = None
+            db.flush()  # add_version re-reads the row: send the un-archive first
+            definition_id = wf.add_version(db, p, existing.id, steps, commit=False).id
         else:
             definition_id = wf.create_definition(
                 db,
@@ -754,6 +758,7 @@ def _compile_approvals(db: Session, p: Principal, a: Automation) -> dict[str, st
                     "Change it in the workflow studio.",
                     steps=steps,
                 ),
+                commit=False,
             ).id
         out[n["id"]] = str(definition_id)
     return out

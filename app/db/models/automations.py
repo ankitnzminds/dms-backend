@@ -149,6 +149,9 @@ class AutomationRun(Base):
     # Dry runs execute an in-memory copy of the DRAFT (never a stored version): {trigger, graph, as_user}
     snapshot: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     error: Mapped[str | None] = mapped_column(String(500))
+    # the item the run is about and who set it off, copied out of trigger_context for indexed lookups
+    resource_id: Mapped[uuid.UUID | None] = mapped_column()
+    starter_id: Mapped[uuid.UUID | None] = mapped_column()
     correlation_id: Mapped[str | None] = mapped_column(String(64))
     created_at: Mapped[datetime] = created_at_col()
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -168,6 +171,17 @@ class AutomationRun(Base):
             "ix_automation_runs_list", "organization_id", "automation_id", text("created_at DESC")
         ),
         Index("ix_automation_runs_active", "status", "created_at"),
+        # "what ran on this file" and "what did I start" read plain columns, not JSON paths
+        Index(
+            "ix_automation_runs_resource", "organization_id", "resource_id", text("created_at DESC")
+        ),
+        Index(
+            "ix_automation_runs_starter",
+            "organization_id",
+            "starter_id",
+            text("created_at DESC"),
+            postgresql_where=text("mode = 'live'"),
+        ),
     )
 
 
@@ -198,4 +212,11 @@ class AutomationNodeRun(Base):
         ),
         UniqueConstraint("run_id", "node_id", name="uq_automation_node_runs_node"),
         CheckConstraint(check_in("status", NODE_STATUSES, "status"), name="status"),
+        # finding the runs parked on one approval when it finishes
+        Index(
+            "ix_automation_node_runs_waiting",
+            "organization_id",
+            text("(output->>'approval_run_id')"),
+            postgresql_where=text("status = 'waiting'"),
+        ),
     )

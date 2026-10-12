@@ -253,7 +253,11 @@ def create_run(
         since = datetime.now(UTC) - timedelta(minutes=10)
         recent = db.scalar(
             select(AutomationRun.id)
-            .where(AutomationRun.automation_id == a.id, AutomationRun.created_at >= since)
+            .where(
+                AutomationRun.automation_id == a.id,
+                AutomationRun.mode == "live",
+                AutomationRun.created_at >= since,
+            )
             .offset(RUNS_PER_10_MIN_LIMIT)
             .limit(1)
         )
@@ -271,9 +275,14 @@ def create_run(
             )
             return None
     run_id = uuid.uuid4()
+    res = trigger_context.get("resource") or {}
     stmt = (
         pg_insert(AutomationRun)
         .values(
+            resource_id=uuid.UUID(res["id"]) if res.get("id") else None,
+            starter_id=uuid.UUID(trigger_context["actor_id"])
+            if trigger_context.get("actor_id")
+            else None,
             id=run_id,
             organization_id=a.organization_id,
             automation_id=a.id,
@@ -308,6 +317,7 @@ def _live_automations(
         select(Automation, AutomationVersion)
         .join(AutomationVersion, AutomationVersion.id == Automation.published_version_id)
         .where(Automation.enabled.is_(True), Automation.status == "published")
+        .order_by(Automation.created_at, Automation.id)  # a stable order for tie-breaks
     )
     if org:
         stmt = stmt.where(Automation.organization_id == org)

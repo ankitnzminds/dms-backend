@@ -116,3 +116,27 @@ so renaming or moving a folder changes what it covers.
 * Access-request workflows cover files only.
 * Timeouts and the safety-net resume are noticed on the maintenance pass (minute-level), not to the second.
 * The visual canvas still runs one linear path with branches; there is no parallel fan-out.
+
+## Concurrency and safety (hardening)
+
+* **One execution of a run at a time.** `execute_run` takes a Postgres advisory lock (dedicated
+  connection) for the whole execution; a second delivery of the same run (outbox retry, approval wake-up,
+  maintenance pass) is dropped and the maintenance pass re-queues anything still waiting. The row lock the
+  engine always had is released by its commits, so it alone could not prevent overlap.
+* **Cancel sticks.** An administrator's cancel is re-checked before every step and before the run is marked
+  finished, so a run in flight cannot revive itself.
+* **Timeouts are unambiguous.** The approval closed for a timeout carries a fixed note; after a crash the
+  retry still maps that cancelled approval to the `timeout` exit instead of `rejected`. If the publisher can
+  no longer close the approval the step fails with a clear message instead of waiting forever.
+* **Double start refused.** A manual workflow cannot be started again on the same item while a run for
+  it is queued, running or waiting (`409 already_running`); starts are rate limited per person.
+* **The circuit breaker counts live runs only**, so dry-run tests cannot disable a workflow.
+* **Publishing is one transaction.** Generated approval definitions are created or versioned without
+  committing in the middle; an archived generated definition is brought back instead of blocking the name.
+  Names use the full workflow id.
+* **Publisher must still be an administrator** to keep running workflows that contain approvals or
+  high-risk steps (checked at every step).
+* **Redaction.** Only the starter and administrators see who started a run, its note and error text; other
+  people who can see the file get status and step outcomes.
+* **Indexes** back "what ran on this file", "what did I start" and the approval wake-up
+  (`ix_automation_runs_resource`, `ix_automation_runs_starter`, `ix_automation_node_runs_waiting`).

@@ -15,11 +15,13 @@ Properties the design relies on (and the tests exercise):
 
 from __future__ import annotations
 
+import contextlib
 import uuid
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.errors import AppError, ForbiddenError
@@ -70,8 +72,39 @@ def _edges(graph: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
     return out
 
 
+@contextlib.contextmanager
+def _run_lock(factory: sessionmaker[Session], run_id: uuid.UUID) -> Iterator[bool]:
+    """One execution of a run at a time, across workers.
+
+    The row lock is released by the commits inside a run, so an advisory lock on a dedicated
+    connection covers the whole execution. If another worker holds it, this delivery is dropped:
+    that worker sees the latest state, and the maintenance pass re-queues anything still waiting.
+    """
+    bind = factory.kw.get("bind")
+    if bind is None:  # no engine to hold a lock on: behave as before
+        yield True
+        return
+    key = int.from_bytes(run_id.bytes[:8], "big", signed=True)
+    with bind.connect() as conn:
+        got = bool(conn.execute(select(func.pg_try_advisory_lock(key))).scalar())
+        try:
+            yield got
+        finally:
+            if got:
+                conn.execute(select(func.pg_advisory_unlock(key)))
+                conn.commit()
+
+
 def execute_run(factory: sessionmaker[Session], run_id: uuid.UUID) -> str:
     """Run (or resume) one run to completion, failure, or a waiting state. Returns its status."""
+    with _run_lock(factory, run_id) as got:
+        if not got:
+            log.info("automation_run_busy", extra={"run_id": str(run_id)})
+            return "busy"
+        return _execute_locked(factory, run_id)
+
+
+def _execute_locked(factory: sessionmaker[Session], run_id: uuid.UUID) -> str:
     with factory() as db:
         run = db.scalar(
             select(AutomationRun)
@@ -116,6 +149,9 @@ def execute_run(factory: sessionmaker[Session], run_id: uuid.UUID) -> str:
             if node["type"] == "end":
                 break
             db.refresh(a)
+            db.refresh(run)
+            if run.status == "cancelled":  # an administrator cancelled it meanwhile
+                return "cancelled"
             if not dry and not a.enabled:
                 _finish(
                     db,
@@ -157,6 +193,18 @@ def execute_run(factory: sessionmaker[Session], run_id: uuid.UUID) -> str:
                     "failed",
                     "The person who published this workflow no longer has access.",
                 )
+                nr.finished_at = datetime.now(UTC)
+                _finish(db, run, a, "failed", nr.error)
+                db.commit()
+                return "failed"
+
+            if (
+                not dry
+                and not principal.is_admin
+                and (version.high_risk_confirmed or version.approval_definitions)
+            ):
+                nr.status = "failed"
+                nr.error = "The person who published this workflow is no longer an administrator."
                 nr.finished_at = datetime.now(UTC)
                 _finish(db, run, a, "failed", nr.error)
                 db.commit()
@@ -244,7 +292,11 @@ def execute_run(factory: sessionmaker[Session], run_id: uuid.UUID) -> str:
             current = _next(result.branch, edges.get(current, []))
 
         run = db.get(AutomationRun, run_id)  # type: ignore[assignment]
-        a = db.get(Automation, run.automation_id)  # type: ignore[union-attr]
+        assert run is not None
+        db.refresh(run)
+        if run.status == "cancelled":
+            return "cancelled"
+        a = db.get(Automation, run.automation_id)
         statuses = {
             s
             for (s,) in db.execute(
@@ -345,20 +397,28 @@ def resume_waiting(factory: sessionmaker[Session]) -> list[uuid.UUID]:
 
     with factory() as db:
         ids = list(
-            db.scalars(select(AutomationRun.id).where(AutomationRun.status == "waiting").limit(100))
+            db.scalars(
+                select(AutomationRun.id)
+                .where(AutomationRun.status == "waiting")
+                .order_by(AutomationRun.created_at)
+                .limit(500)
+            )
         )
     queue_runs(factory, ids)
     return ids
 
 
-def wake_for_approval(db: Session, workflow_run_id: uuid.UUID) -> int:
+def wake_for_approval(db: Session, org_id: uuid.UUID, workflow_run_id: uuid.UUID) -> int:
     """An approval just finished: re-queue the automation runs parked on it right away, instead
     of waiting for the next maintenance pass."""
     from app.modules.outbox import service as outbox
 
     ids = set(
         db.scalars(
-            select(AutomationNodeRun.run_id).where(
+            select(AutomationNodeRun.run_id)
+            .join(AutomationRun, AutomationRun.id == AutomationNodeRun.run_id)
+            .where(
+                AutomationRun.organization_id == org_id,
                 AutomationNodeRun.status == "waiting",
                 AutomationNodeRun.output["approval_run_id"].astext == str(workflow_run_id),
             )

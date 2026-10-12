@@ -125,7 +125,7 @@ def _definition_out(d: WorkflowDefinition, v: WorkflowDefinitionVersion) -> Work
 
 
 def create_definition(
-    db: Session, p: Principal, body: WorkflowDefinitionIn
+    db: Session, p: Principal, body: WorkflowDefinitionIn, *, commit: bool = True
 ) -> WorkflowDefinitionOut:
     require_admin(p)
     _validate_references(db, p.organization_id, body.steps)
@@ -162,7 +162,10 @@ def create_definition(
         resource_id=d.id,
         metadata={"name": d.name, "steps": len(body.steps)},
     )
-    db.commit()
+    if commit:
+        db.commit()
+    else:  # the caller owns the transaction (several changes must land together)
+        db.flush()
     return _definition_out(d, v)
 
 
@@ -179,7 +182,12 @@ def _def_or_404(db: Session, p: Principal, definition_id: uuid.UUID) -> Workflow
 
 
 def add_version(
-    db: Session, p: Principal, definition_id: uuid.UUID, steps: list[StepSpec]
+    db: Session,
+    p: Principal,
+    definition_id: uuid.UUID,
+    steps: list[StepSpec],
+    *,
+    commit: bool = True,
 ) -> WorkflowDefinitionOut:
     """New steps = new immutable version. Runs already in flight keep the version they started with."""
     require_admin(p)
@@ -214,7 +222,10 @@ def add_version(
         resource_id=d.id,
         metadata={"version": v.version_number},
     )
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     return _definition_out(d, v)
 
 

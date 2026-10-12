@@ -26,7 +26,13 @@ TYPES = {
 }
 
 
-def call(method: str, path: str, token: str | None = None, body: object | None = None, raw: bytes | None = None):
+def call(
+    method: str,
+    path: str,
+    token: str | None = None,
+    body: object | None = None,
+    raw: bytes | None = None,
+):
     headers = {"Authorization": f"Bearer {token}"} if token else {}
     data = raw
     if body is not None:
@@ -42,18 +48,29 @@ def call(method: str, path: str, token: str | None = None, body: object | None =
 
 def main() -> int:
     name = sys.argv[1] if len(sys.argv) > 1 else "Office samples"
-    token = call("POST", "/dev/login", body={"email": "alice@acme.test", "password": "dev-password-123"})["access_token"]
+    token = call(
+        "POST", "/dev/login", body={"email": "alice@acme.test", "password": "dev-password-123"}
+    )["access_token"]
     root = call("GET", "/folders/root", token)["id"]
     folder = call("POST", "/folders", token, {"parent_folder_id": root, "name": name})["id"]
     print("folder:", name, folder)
     for path in sorted(FIXTURES.iterdir()):
         data = path.read_bytes()
-        ctype = TYPES.get(path.suffix) or mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+        ctype = (
+            TYPES.get(path.suffix)
+            or mimetypes.guess_type(path.name)[0]
+            or "application/octet-stream"
+        )
         session = call(
             "POST",
             f"/folders/{folder}/uploads",
             token,
-            {"filename": path.name, "size_bytes": len(data), "content_type": ctype, "sha256": hashlib.sha256(data).hexdigest()},
+            {
+                "filename": path.name,
+                "size_bytes": len(data),
+                "content_type": ctype,
+                "sha256": hashlib.sha256(data).hexdigest(),
+            },
         )
         call("PUT", "/uploads/" + session["upload_url"].split("/uploads/")[1], token, raw=data)
         doc = call("POST", f"/uploads/{session['id']}/finalize", token)

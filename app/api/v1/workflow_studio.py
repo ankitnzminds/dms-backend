@@ -7,7 +7,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Query
 
-from app.api.deps import Authz, CurrentPrincipal, DbSession
+from app.api.deps import Authz, CurrentPrincipal, DbSession, limited
 from app.modules.automations import manual
 from app.schemas.automations import (
     AutomationRunOut,
@@ -40,6 +40,7 @@ def startable(
     response_model=StartedOut,
     status_code=202,
     summary="Start a workflow on a file or folder",
+    dependencies=[limited("workflow_start", sensitive=True)],
 )
 def start(automation_id: uuid.UUID, body: StartRequest, db: DbSession, authz: Authz) -> StartedOut:
     return manual.start(db, authz, automation_id, body)

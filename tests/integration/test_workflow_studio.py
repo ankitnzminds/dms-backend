@@ -305,9 +305,7 @@ class TestHumanApproval:
             names = list(
                 db.scalars(
                     select(WorkflowDefinition.name).where(
-                        WorkflowDefinition.name.like(
-                            f"Workflow studio: {aid.replace('-', '')[:8]}/%"
-                        )
+                        WorkflowDefinition.name.like(f"Workflow studio: {aid.replace('-', '')}/%")
                     )
                 )
             )
@@ -767,3 +765,211 @@ class TestManualStartWithApproval:
         done = noah.get(f"{API}/automation-runs/mine/{run['id']}").json()
         assert done["status"] == "succeeded"
         assert done["steps"][0]["branch"] == "approved"
+
+
+class TestHardening:
+    """Races, redaction and edge cases found in review."""
+
+    def manual_approval(self, env, name="Manual approval"):  # noqa: ANN001, ANN201
+        o = env["owner"]
+        return go_live(
+            o,
+            body_of(
+                name,
+                {"key": "manual_file", "params": {"path": "/Inbox"}},
+                graph_approval(o, [env["mia"]]),
+            ),
+        )
+
+    def grant_edit(self, env, user):  # noqa: ANN001, ANN201
+        r = env["owner"].post(
+            f"{API}/folders/{env['inbox']}/permissions",
+            json={
+                "subject_type": "user",
+                "subject_id": str(user.user_id),
+                "actions": ["view", "edit_metadata"],
+            },
+        )
+        assert r.status_code == 201, r.text
+
+    def test_a_second_start_on_the_same_item_is_refused_until_the_first_finishes(self, env):  # noqa: ANN001
+        w, o, mia, noah = env["world"], env["owner"], env["mia"], env["noah"]
+        aid = self.manual_approval(env)
+        doc = w.available_doc(o, env["inbox"], "plan.pdf", PDF)
+        self.grant_edit(env, noah)
+        q = {"resource_type": "document", "resource_id": doc}
+        assert noah.post(f"{API}/automations/{aid}/start", json=q).status_code == 202
+        w.process_jobs()
+        again = noah.post(f"{API}/automations/{aid}/start", json=q)
+        assert again.status_code == 409 and again.json()["error"]["code"] == "already_running"
+        decide(mia, "approve")
+        w.process_jobs()
+        assert noah.post(f"{API}/automations/{aid}/start", json=q).status_code == 202
+
+    def test_people_who_only_view_the_file_do_not_see_who_started_it_or_why(self, env):  # noqa: ANN001
+        w, o, mia, noah = env["world"], env["owner"], env["mia"], env["noah"]
+        aid = self.manual_approval(env)
+        doc = w.available_doc(o, env["inbox"], "plan.pdf", PDF)
+        self.grant_edit(env, noah)
+        noah.post(
+            f"{API}/automations/{aid}/start",
+            json={"resource_type": "document", "resource_id": doc, "note": "private reason"},
+        )
+        w.process_jobs()
+        seen_by_viewer = mia.get(f"{API}/documents/{doc}/automation-runs").json()[0]
+        assert seen_by_viewer["started_by_email"] is None and seen_by_viewer["note"] is None
+        assert seen_by_viewer["status"] == "waiting"
+        assert seen_by_viewer["steps"][0]["label"] == "Human approval"
+        starter = noah.get(f"{API}/documents/{doc}/automation-runs").json()[0]
+        assert starter["note"] == "private reason" and starter["started_by_email"] == noah.email
+        admin = o.get(f"{API}/documents/{doc}/automation-runs").json()[0]
+        assert admin["note"] == "private reason"
+
+    def test_an_approval_we_closed_for_timeout_is_still_a_timeout_after_a_crash(self, env):  # noqa: ANN001
+        from app.db.models import WorkflowRun
+        from app.modules.automations.actions import TIMEOUT_NOTE
+        from app.modules.identity.service import principal_for
+        from app.modules.workflows import service as wf
+
+        w, o, mia = env["world"], env["owner"], env["mia"]
+        aid = go_live(
+            o,
+            body_of(
+                "Timeout marker",
+                {"key": "file_created", "params": {"path": "/Inbox"}},
+                graph_approval(o, [mia], timeout_days=1),
+            ),
+        )
+        w.available_doc(o, env["inbox"], "plan.pdf", PDF)
+        run = only_run(o, aid)
+        approval_id = uuid.UUID(node_states(o, run["id"])["h"]["output"]["approval_run_id"])
+        # the approval was closed with our timeout note but the node output was never saved
+        with w.db_factory() as db:
+            wf.cancel_run(db, principal_for(db, o.user_id, o.org_id), approval_id, TIMEOUT_NOTE)
+            assert db.get(WorkflowRun, approval_id).state == "cancelled"
+        w.process_jobs()
+        run = only_run(o, aid)
+        assert node_states(o, run["id"])["h"]["output"]["branch"] == "timeout"
+
+    def test_a_cancelled_run_stays_cancelled(self, env):  # noqa: ANN001
+        from app.modules.automations import engine
+
+        w, o, mia = env["world"], env["owner"], env["mia"]
+        aid = go_live(
+            o,
+            body_of(
+                "Cancel me",
+                {"key": "file_created", "params": {"path": "/Inbox"}},
+                graph_approval(o, [mia]),
+            ),
+        )
+        w.available_doc(o, env["inbox"], "plan.pdf", PDF)
+        run = only_run(o, aid)
+        assert o.post(f"{A}/automation-runs/{run['id']}/cancel").status_code == 200
+        engine.resume_waiting(w.db_factory)
+        w.process_jobs()
+        decide(mia, "approve")  # the late answer must not revive it
+        w.process_jobs()
+        assert only_run(o, aid)["status"] == "cancelled"
+
+    def test_only_one_execution_of_a_run_at_a_time(self, env):  # noqa: ANN001
+        from app.modules.automations import engine
+
+        w, o, mia = env["world"], env["owner"], env["mia"]
+        aid = go_live(
+            o,
+            body_of(
+                "Busy",
+                {"key": "file_created", "params": {"path": "/Inbox"}},
+                graph_approval(o, [mia]),
+            ),
+        )
+        w.available_doc(o, env["inbox"], "plan.pdf", PDF)
+        run_id = uuid.UUID(only_run(o, aid)["id"])
+        with engine._run_lock(w.db_factory, run_id) as got:  # noqa: SLF001
+            assert got is True
+            # a second delivery while the first is still working is dropped, not run twice
+            assert engine.execute_run(w.db_factory, run_id) == "busy"
+        assert engine.execute_run(w.db_factory, run_id) == "waiting"
+
+    def test_the_circuit_breaker_ignores_dry_runs(self, env, monkeypatch):  # noqa: ANN001
+        from app.modules.automations import triggers
+
+        monkeypatch.setattr(triggers, "RUNS_PER_10_MIN_LIMIT", 2)
+        w, o = env["world"], env["owner"]
+        aid = go_live(
+            o,
+            body_of(
+                "Breaker",
+                {"key": "file_created", "params": {"path": "/Inbox"}},
+                linear("notify_users", notify(o, "x")),
+            ),
+        )
+        doc = w.available_doc(o, env["inbox"], "first.pdf", PDF)
+        for _ in range(4):  # dry runs are not real runs
+            t = o.post(f"{A}/automations/{aid}/test", json={"resource_id": doc})
+            assert t.status_code == 200
+        w.available_doc(o, env["inbox"], "second.pdf", PDF + b"2")
+        assert o.get(f"{A}/automations/{aid}").json()["enabled"] is True
+
+    def test_republishing_works_after_the_generated_approval_was_archived(self, env):  # noqa: ANN001
+        from app.db.models import WorkflowDefinition
+
+        w, o, mia = env["world"], env["owner"], env["mia"]
+        aid = go_live(
+            o,
+            body_of(
+                "Archived approval",
+                {"key": "file_created", "params": {"path": "/Inbox"}},
+                graph_approval(o, [mia]),
+            ),
+        )
+        with w.db_factory() as db:
+            for d in db.scalars(
+                select(WorkflowDefinition).where(
+                    WorkflowDefinition.name.like(f"Workflow studio: {aid.replace('-', '')}/%")
+                )
+            ):
+                d.archived_at = datetime.now(UTC)
+            db.commit()
+        assert o.post(f"{A}/automations/{aid}/publish", json={}).status_code == 200
+        w.available_doc(o, env["inbox"], "plan.pdf", PDF)
+        run = only_run(o, aid)
+        assert run["status"] == "waiting", run["error"]
+
+    def test_a_publisher_who_is_no_longer_an_administrator_cannot_keep_running_approvals(self, env):  # noqa: ANN001
+        from app.db.models import Membership
+
+        w, o, mia = env["world"], env["owner"], env["mia"]
+        boss = w.user(o, "admin", label="boss")
+        aid = go_live(
+            boss,
+            body_of(
+                "Demoted publisher",
+                {"key": "file_created", "params": {"path": "/Inbox"}},
+                graph_approval(o, [mia]),
+            ),
+        )
+        with w.db_factory() as db:
+            m = db.scalar(select(Membership).where(Membership.user_id == boss.user_id))
+            m.role = "member"
+            db.commit()
+        w.available_doc(o, env["inbox"], "plan.pdf", PDF)
+        run = only_run(o, aid)
+        assert run["status"] == "failed"
+        assert "no longer an administrator" in run["error"]
+
+    def test_the_run_list_indexes_exist(self, env):  # noqa: ANN001
+        from sqlalchemy import text
+
+        with env["world"].db_factory() as db:
+            names = set(
+                db.scalars(
+                    text("SELECT indexname FROM pg_indexes WHERE indexname LIKE 'ix_automation_%'")
+                )
+            )
+        assert {
+            "ix_automation_runs_resource",
+            "ix_automation_runs_starter",
+            "ix_automation_node_runs_waiting",
+        } <= names

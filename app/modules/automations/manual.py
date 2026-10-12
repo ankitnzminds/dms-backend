@@ -20,7 +20,7 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.core.errors import ForbiddenError, NotFoundError, ValidationFailed
+from app.core.errors import ConflictError, ForbiddenError, NotFoundError, ValidationFailed
 from app.db.enums import Action
 from app.db.models import (
     Automation,
@@ -139,6 +139,21 @@ def start(
             "This workflow does not apply to that item (outside its folder or file-type scope).",
             code="out_of_scope",
         )
+    running = db.scalar(
+        select(AutomationRun.id)
+        .where(
+            AutomationRun.automation_id == a.id,
+            AutomationRun.mode == "live",
+            AutomationRun.status.in_(("queued", "running", "waiting")),
+            AutomationRun.resource_id == body.resource_id,
+        )
+        .limit(1)
+    )
+    if running is not None:
+        raise ConflictError(
+            "This workflow is already running on that item. Wait for it to finish.",
+            code="already_running",
+        )
     stored: dict[str, Any] = {
         "event": "manual",
         "actor_id": str(p.user_id),
@@ -168,7 +183,11 @@ def start(
 
 
 # ------------------------------------------------------------------------------ summaries
-def summarize(db: Session, runs: list[AutomationRun]) -> list[RunSummaryOut]:
+def summarize(
+    db: Session, runs: list[AutomationRun], viewer: Principal | None = None
+) -> list[RunSummaryOut]:
+    """``viewer`` None = full detail. Otherwise only the starter and administrators see who started
+    it, the note and error text; everyone else gets the workflow, status and step outcomes."""
     if not runs:
         return []
     names = dict(
@@ -209,20 +228,26 @@ def summarize(db: Session, runs: list[AutomationRun]) -> list[RunSummaryOut]:
         tc = r.trigger_context or {}
         res = tc.get("resource") or {}
         starter = tc.get("actor_id")
+        full = viewer is None or viewer.is_admin or starter == str(viewer.user_id)
+        run_steps = steps.get(r.id, [])
+        if not full:
+            run_steps = [s.model_copy(update={"error": None}) for s in run_steps]
         out.append(
             RunSummaryOut(
                 id=r.id,
                 automation_name=names.get(r.automation_id, "Workflow"),
                 status=r.status,  # type: ignore[arg-type]
-                started_by_email=emails.get(uuid.UUID(starter)) if starter else None,
+                started_by_email=(emails.get(uuid.UUID(starter)) if starter else None)
+                if full
+                else None,
                 resource_name=res.get("name"),
                 resource_type=res.get("type"),
                 resource_id=uuid.UUID(res["id"]) if res.get("id") else None,
-                note=tc.get("note"),
-                error=r.error,
+                note=tc.get("note") if full else None,
+                error=r.error if full else ("It stopped with an error." if r.error else None),
                 created_at=r.created_at,
                 finished_at=r.finished_at,
-                steps=steps.get(r.id, []),
+                steps=run_steps,
             )
         )
     return out
@@ -236,13 +261,13 @@ def my_runs(
         AutomationRun.organization_id == p.organization_id,
         AutomationRun.mode == "live",
         AutomationRun.event_key.like("manual:%"),
-        AutomationRun.trigger_context["actor_id"].astext == str(p.user_id),
+        AutomationRun.starter_id == p.user_id,
     )
     total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
     rows = db.scalars(
         stmt.order_by(AutomationRun.created_at.desc()).limit(limit).offset(offset)
     ).all()
-    return summarize(db, list(rows)), int(total)
+    return summarize(db, list(rows), p), int(total)
 
 
 def get_my_run(db: Session, p: Principal, run_id: uuid.UUID) -> RunSummaryOut:
@@ -251,12 +276,13 @@ def get_my_run(db: Session, p: Principal, run_id: uuid.UUID) -> RunSummaryOut:
             AutomationRun.id == run_id,
             AutomationRun.organization_id == p.organization_id,
             AutomationRun.mode == "live",
+            AutomationRun.event_key.like("manual:%"),
         )
     )
     starter = ((run.trigger_context or {}).get("actor_id") if run else None) or ""
     if run is None or not (starter == str(p.user_id) or p.is_admin):
         raise NotFoundError("Run not found.")
-    return summarize(db, [run])[0]
+    return summarize(db, [run], p)[0]
 
 
 def document_runs(
@@ -270,12 +296,12 @@ def document_runs(
         .where(
             AutomationRun.organization_id == p.organization_id,
             AutomationRun.mode == "live",
-            AutomationRun.trigger_context["resource"]["id"].astext == str(doc.id),
+            AutomationRun.resource_id == doc.id,
         )
         .order_by(AutomationRun.created_at.desc())
         .limit(limit)
     ).all()
-    return summarize(db, list(rows))
+    return summarize(db, list(rows), p)
 
 
 def admin_runs(
