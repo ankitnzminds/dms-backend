@@ -1,0 +1,163 @@
+# Render Blueprint for the DMS backend: Postgres + ClamAV scanner + API + worker.
+#
+# Every service tracks the `main` branch and redeploys automatically on each push or merge to main
+# (autoDeploy: true). Setup steps, the full variable list and costs: docs/operations/deploy-render.md
+#
+# `sync: false` values are secrets or per-environment URLs. Render asks for them once when the
+# Blueprint is first applied; they are never stored in git.
+#
+# Production-like settings are enforced by the app itself: Supabase sign-in + private Supabase
+# storage, a real malware scanner (clamd) and a signing secret are mandatory, and the dev
+# sign-in / local storage / fake providers are refused (app/core/config.py).
+
+services:
+  # ---------------------------------------------------------------- virus scanner (private)
+  # Only reachable from the API and worker over Render's private network.
+  - type: pserv
+    name: dms-clamav
+    runtime: docker
+    plan: standard # ClamAV loads ~1.3 GB of signatures; 512 MB plans are killed (OOM)
+    region: singapore
+    branch: main
+    autoDeploy: true
+    dockerfilePath: ./deploy/clamav/Dockerfile
+    dockerContext: ./deploy/clamav
+
+  # ---------------------------------------------------------------- API
+  - type: web
+    name: dms-api
+    runtime: docker
+    plan: starter
+    region: singapore
+    branch: main
+    autoDeploy: true
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health/live
+    # Applies Alembic migrations before the new version starts taking traffic; a failing
+    # migration fails the deploy and the previous version keeps serving.
+    preDeployCommand: python -m app.cli migrate
+    envVars:
+      - key: PORT
+        value: "8000"
+      - key: APP_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: INFO
+      # The API's own public URL (used to build download/preview links), e.g. https://dms-api.onrender.com
+      - key: PUBLIC_API_BASE_URL
+        sync: false
+      # Browser origin of the web app, e.g. https://dms-web.onrender.com (no trailing slash, never "*")
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: WEB_BASE_URL
+        sync: false
+      # Render's load balancer is the only way in, so trust its X-Forwarded-* headers.
+      - key: FORWARDED_ALLOW_IPS
+        value: "*"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: dms-db
+          property: connectionString
+      # Authentication + object storage (Supabase)
+      - key: AUTH_PROVIDER
+        value: supabase
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_JWT_AUDIENCE
+        value: authenticated
+      - key: STORAGE_PROVIDER
+        value: supabase
+      - key: SUPABASE_STORAGE_BUCKET
+        value: dms-private
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: DOWNLOAD_SIGNING_SECRET
+        generateValue: true
+      # Malware scanning
+      - key: MALWARE_SCANNER
+        value: clamd
+      - key: CLAMD_HOST
+        fromService:
+          type: pserv
+          name: dms-clamav
+          property: host
+      - key: CLAMD_PORT
+        value: "3310"
+      # AI assistant + OCR of scanned documents
+      - key: AI_PROVIDER
+        value: gemini
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-3.1-flash-lite
+      - key: AI_OCR
+        value: "true"
+
+  # ---------------------------------------------------------------- worker
+  # Outbox events: virus scans, text extraction / OCR, notifications, workflow runs, housekeeping.
+  - type: worker
+    name: dms-worker
+    runtime: docker
+    plan: starter
+    region: singapore
+    branch: main
+    autoDeploy: true
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    dockerCommand: python -m app.cli worker
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: INFO
+      - key: PUBLIC_API_BASE_URL
+        sync: false
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: WEB_BASE_URL
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: dms-db
+          property: connectionString
+      - key: AUTH_PROVIDER
+        value: supabase
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_JWT_AUDIENCE
+        value: authenticated
+      - key: STORAGE_PROVIDER
+        value: supabase
+      - key: SUPABASE_STORAGE_BUCKET
+        value: dms-private
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: DOWNLOAD_SIGNING_SECRET
+        generateValue: true
+      - key: MALWARE_SCANNER
+        value: clamd
+      - key: CLAMD_HOST
+        fromService:
+          type: pserv
+          name: dms-clamav
+          property: host
+      - key: CLAMD_PORT
+        value: "3310"
+      - key: AI_PROVIDER
+        value: gemini
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-3.1-flash-lite
+      - key: AI_OCR
+        value: "true"
+
+databases:
+  - name: dms-db
+    databaseName: dms
+    user: dms
+    plan: basic-256mb
+    region: singapore
+    postgresMajorVersion: "17"
+    ipAllowList: [] # internal access only (API and worker); no public connections
