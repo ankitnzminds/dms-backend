@@ -56,6 +56,22 @@ services:
     ports: ["3310:3310"]
     profiles: ["scan"]
 
+  # Office viewer/editor (Collabora Online). Start with: docker compose --profile office up -d collabora
+  # The browser reaches it at COLLABORA_URL (http://localhost:9980); Collabora reaches the API at WOPI_HOST_URL.
+  collabora:
+    image: collabora/code:latest
+    ports: ["9980:9980"]
+    environment:
+      # WOPI hosts Collabora may talk to (the API as seen from inside Docker)
+      aliasgroup1: http://host.docker.internal:8000
+      # plain http for local development (TLS is terminated by your reverse proxy in production)
+      extra_params: --o:ssl.enable=false --o:ssl.termination=false --o:net.frame_ancestors=* --o:storage.wopi.host[0]=host.docker.internal --o:storage.wopi.host[0]@allow=true
+      username: admin
+      password: dev-only-collabora-admin
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    restart: unless-stopped
+    profiles: ["office"]
+
 volumes:
   dbdata:
   objects:
