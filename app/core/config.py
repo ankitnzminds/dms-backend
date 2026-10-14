@@ -26,7 +26,13 @@ def _is_remote_database(url: str) -> bool:
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", extra="ignore", case_sensitive=False
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+        case_sensitive=False,
+        # A variable that exists but is blank (typical for an unfilled field in a hosting dashboard)
+        # counts as "not set", so the documented default applies instead of a crash at startup.
+        env_ignore_empty=True,
     )
 
     # --- application ---
