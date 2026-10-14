@@ -19,17 +19,86 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.adapters.llm.base import LlmError
+from app.adapters.llm.factory import get_llm
 from app.adapters.storage.base import new_object_key
 from app.adapters.storage.registry import get_storage_provider
 from app.core.config import Settings
 from app.core.logging import get_logger
 from app.db.enums import ScanStatus
-from app.db.models import DocumentDerivative, DocumentText, DocumentVersion, StorageLocation
+from app.db.models import (
+    Document,
+    DocumentDerivative,
+    DocumentText,
+    DocumentVersion,
+    Organization,
+    StorageLocation,
+)
 
 log = get_logger(__name__)
 
 _MAX_CHILD_OUTPUT = 8 * 1024 * 1024
 _MIN_ENV = ("PATH", "SYSTEMROOT", "TEMP", "TMP", "LANG", "LC_ALL")
+# A PDF whose text layer averages fewer characters per page than this is treated as scanned
+# (what little text there is tends to be a watermark, header or page number).
+SPARSE_PDF_CHARS_PER_PAGE = 80
+AI_OCR_ENGINE = "gemini-ocr"
+
+
+def needs_ai_ocr(status: str, content_type: str, char_count: int, pages: int | None) -> bool:
+    """Should the local extraction result be replaced by an AI transcription?"""
+    if status == "ocr_unavailable":
+        return True
+    if status == "empty" and content_type.lower().startswith("image/"):
+        return True
+    return bool(
+        status in ("extracted", "empty")
+        and content_type.lower() == "application/pdf"
+        and pages
+        and char_count / pages < SPARSE_PDF_CHARS_PER_PAGE
+    )
+
+
+def _blocked_classifications(db: Session, org_id: uuid.UUID) -> frozenset[str]:
+    settings = db.scalar(select(Organization.settings).where(Organization.id == org_id))
+    return frozenset((settings or {}).get("share_blocked_classifications", ["restricted"]))
+
+
+def ai_transcribe(
+    db: Session,
+    settings: Settings,
+    *,
+    org_id: uuid.UUID,
+    doc_id: uuid.UUID,
+    content_type: str,
+    data: bytes,
+) -> tuple[str, str] | None:
+    """(text, engine) from the configured AI provider, or None when it must not / cannot run.
+
+    The file is sent to the provider only when AI OCR is on, the provider can transcribe, the
+    file is within the size limit, and the document's classification is not DLP-blocked.
+    """
+    if not settings.ai_ocr or len(data) > settings.ai_ocr_max_bytes:
+        return None
+    llm = get_llm()
+    transcribe = getattr(llm, "transcribe", None)
+    if llm is None or transcribe is None:
+        return None
+    classification = db.scalar(select(Document.classification).where(Document.id == doc_id))
+    if classification is None or classification in _blocked_classifications(db, org_id):
+        return None
+    try:
+        text = transcribe(
+            data,
+            content_type.lower(),
+            max_chars=settings.extract_max_chars,
+            max_pages=settings.extract_max_pages,
+        )
+    except LlmError as exc:
+        log.warning("ai_ocr_failed", extra={"document_id": str(doc_id), "error": str(exc)})
+        return None
+    text = text.replace("\x00", "")
+    return text[: settings.extract_max_chars], AI_OCR_ENGINE
 
 
 class ExtractionChildError(Exception):
@@ -125,6 +194,21 @@ def process_version(db: Session, version_id: uuid.UUID, settings: Settings) -> s
                 )
                 if result.get("thumbnail"):
                     thumb_bytes = Path(result["thumbnail"]).read_bytes()
+                if needs_ai_ocr(status, content_type, len(text), result.get("pages")):
+                    # Scanned document: no usable text layer. Ask the AI provider to read it.
+                    transcribed = ai_transcribe(
+                        db,
+                        settings,
+                        org_id=org_id,
+                        doc_id=doc_id,
+                        content_type=content_type,
+                        data=src.read_bytes(),
+                    )
+                    if transcribed is not None:
+                        text, engine = transcribed
+                        status = "extracted" if text.strip() else "empty"
+                        truncated = len(text) >= settings.extract_max_chars
+                        error = None
             except ExtractionChildError as exc:
                 status, error = "failed", str(exc)[:300]
 

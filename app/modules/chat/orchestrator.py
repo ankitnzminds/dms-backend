@@ -158,7 +158,12 @@ def _context_hint(authz: AuthorizationService, blocks: list[dict[str, Any]]) -> 
         try:
             if b.get("document_id"):
                 d = authz.require_document(uuid.UUID(b["document_id"]), Action.DISCOVER)
-                return f'UI context: the user is viewing the document "{d.name}" (id {d.id}).'
+                return (
+                    f'UI context: the user is viewing the document "{d.name}" (id {d.id}). '
+                    'When they say "this document", "this file" or ask about its contents, they '
+                    "mean this one: call read_document or retrieve_passages with that id first; "
+                    "do not search for it by name."
+                )
             if b.get("folder_id"):
                 f = authz.require_folder(uuid.UUID(b["folder_id"]), Action.DISCOVER)
                 return f'UI context: the user is viewing the folder "{f.name}" (id {f.id}).'
@@ -271,6 +276,7 @@ def _run(db: Session, run_id: uuid.UUID, org_id: uuid.UUID, user_id: uuid.UUID) 
                         "id": c.id,
                         "type": "function",
                         "function": {"name": c.name, "arguments": c.arguments},
+                        **({"extra_content": c.extra} if c.extra else {}),
                     }
                     for c in turn.tool_calls
                 ],

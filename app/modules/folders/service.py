@@ -17,7 +17,12 @@ from app.db.models import Document, DocumentVersion, Folder
 from app.modules.audit import service as audit
 from app.modules.authorization.service import AuthorizationService, BreadcrumbSegment
 from app.modules.documents.locks import assert_folder_unlocked_for
-from app.modules.folders.common import ensure_name_free, plain_path, subtree_folder_ids
+from app.modules.folders.common import (
+    ensure_name_free,
+    live_subtree_folder_ids,
+    plain_path,
+    subtree_folder_ids,
+)
 from app.modules.items.common import (
     document_stars,
     folder_favorites,
@@ -30,6 +35,55 @@ from app.schemas.common import BreadcrumbSegmentOut
 from app.schemas.tree import FolderOut, TrashItem, TreeItem
 
 MAX_LIST_CHILDREN = 10_000
+# Folder sizes in a listing: at most this many folders per page and documents per folder are
+# examined; past the cap the size is left blank rather than shown as a wrong number.
+MAX_SIZED_FOLDERS = 200
+MAX_SIZED_DOCUMENTS = 5_000
+
+
+def folder_sizes(
+    db: Session, authz: AuthorizationService, folder_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, int]:
+    """Total bytes (current versions) of the documents the caller may DISCOVER inside each folder,
+    subfolders included. Counts only what the caller can see, so a size never reveals hidden
+    content. Folders over the document cap are omitted (the caller shows no size)."""
+    org_id = authz.principal.organization_id
+    out: dict[uuid.UUID, int] = {}
+    for fid in folder_ids[:MAX_SIZED_FOLDERS]:
+        tree = live_subtree_folder_ids(db, org_id, fid)
+        docs = list(
+            db.scalars(
+                select(Document)
+                .where(
+                    Document.organization_id == org_id,
+                    Document.folder_id.in_(tree),
+                    Document.deleted_at.is_(None),
+                )
+                .limit(MAX_SIZED_DOCUMENTS + 1)
+            )
+        )
+        if len(docs) > MAX_SIZED_DOCUMENTS:
+            continue
+        perms = authz.document_actions(docs)
+        seen = [
+            d for d in docs if Action.DISCOVER.value in perms.get(d.id, ()) and d.current_version_id
+        ]
+        sizes = (
+            dict(
+                db.execute(
+                    select(DocumentVersion.id, DocumentVersion.size_bytes).where(
+                        DocumentVersion.organization_id == org_id,
+                        DocumentVersion.id.in_([d.current_version_id for d in seen]),
+                    )
+                ).all()
+            )
+            if seen
+            else {}
+        )
+        out[fid] = sum(
+            sizes.get(d.current_version_id, 0) for d in seen if d.current_version_id is not None
+        )
+    return out
 
 
 def to_breadcrumb_out(segments: list[BreadcrumbSegment]) -> list[BreadcrumbSegmentOut]:
@@ -210,7 +264,15 @@ def list_children(
         raise ValidationFailed("sort must be one of: name, updated_at, size, type, modified_by.")
     items.sort(key=key_funcs[sort], reverse=descending)
     items.sort(key=lambda i: 0 if i.kind == "folder" else 1)  # folders first (stable)
-    return items[offset : offset + limit], len(items)
+    page = items[offset : offset + limit]
+    # Folder sizes are computed for the page only (not the whole listing), so sorting by size
+    # orders documents; folders always come first.
+    page_folders = [i for i in page if i.kind == "folder"]
+    if page_folders:
+        sized = folder_sizes(db, authz, [i.id for i in page_folders])
+        for i in page_folders:
+            i.size_bytes = sized.get(i.id)
+    return page, len(items)
 
 
 def breadcrumb(

@@ -475,6 +475,53 @@ class TestPropertiesAndPreferences:
         )  # non-inheriting grant
         assert limited["active_shares"] is None
 
+    def test_folder_size_in_listing_is_recursive_and_visibility_limited(self, env):  # noqa: ANN001
+        w, a = env["world"], env["admin"]
+        m = w.user(a, "member", label="size-m")
+        top = w.mkdir(a, env["src"], "sized")
+        inner = w.mkdir(a, top, "inner")
+        w.available_doc(a, top, "top.pdf", PDF + b" top-file")
+        w.available_doc(a, inner, "deep.pdf", PDF + b" deeper-file-in-subfolder")
+        empty = w.mkdir(a, env["src"], "empty")
+
+        def sizes(client):  # noqa: ANN001, ANN202
+            items = client.get(f"/api/v1/folders/{env['src']}/children").json()["items"]
+            return {i["name"]: i["size_bytes"] for i in items}
+
+        got = sizes(a)
+        expected = len(PDF + b" top-file") + len(PDF + b" deeper-file-in-subfolder")
+        assert got["sized"] == expected  # documents in subfolders count
+        assert got["empty"] == 0  # a real zero, not a missing value
+        assert empty  # (kept for readability of the fixture)
+
+        # a user who can see the folder but not the files inside must not learn their size
+        a.post(
+            f"/api/v1/folders/{env['src']}/permissions",
+            json={
+                "subject_type": "user",
+                "subject_id": str(m.user_id),
+                "actions": ["view"],
+                "inherit": False,
+            },
+        )
+        a.post(
+            f"/api/v1/folders/{top}/permissions",
+            json={
+                "subject_type": "user",
+                "subject_id": str(m.user_id),
+                "actions": ["view"],
+                "inherit": False,
+            },
+        )
+        seen = sizes(m)
+        assert seen.get("sized") == 0  # grants are non-inheriting: nothing inside is visible
+
+        # trashed documents do not count
+        doc = w.available_doc(a, top, "gone.pdf", PDF + b" will-be-deleted")
+        assert sizes(a)["sized"] == expected + len(PDF + b" will-be-deleted")
+        a.delete(f"/api/v1/documents/{doc}")
+        assert sizes(a)["sized"] == expected
+
     def test_preferences_roundtrip_are_per_user_and_validated(self, env):  # noqa: ANN001
         w, a = env["world"], env["admin"]
         m = w.user(a, "member", label="m")

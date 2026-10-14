@@ -1,4 +1,4 @@
-"""Groq (OpenAI-compatible chat completions) client."""
+"""OpenAI-compatible chat-completions client (Groq; Gemini subclasses it)."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import httpx
 
 from app.adapters.llm.base import ChatTurn, LlmError, ToolCall
 
-MAX_429_RETRIES = 2
+MAX_429_RETRIES = 3  # applies to 429 and 503
 MAX_WAIT_SECONDS = 20.0
 
 
@@ -21,6 +21,8 @@ def _retry_after(resp: httpx.Response) -> float:
 
 
 class GroqClient:
+    provider = "Groq"
+
     def __init__(self, api_key: str, model: str, base_url: str, timeout_seconds: int) -> None:
         self._api_key = api_key
         self.model = model
@@ -28,15 +30,13 @@ class GroqClient:
         self._timeout = timeout_seconds
 
     def _body(self, messages: list[dict[str, Any]], max_tokens: int) -> dict[str, Any]:
-        body: dict[str, Any] = {
-            "model": self.model,
-            "messages": messages,
-            "temperature": 0.2,
-            # reasoning models spend completion tokens on thinking; leave headroom
-            "max_completion_tokens": max_tokens + (1024 if "gpt-oss" in self.model else 0),
-        }
+        body: dict[str, Any] = {"model": self.model, "messages": messages, "temperature": 0.2}
         if "gpt-oss" in self.model:
+            # reasoning models spend completion tokens on thinking; leave headroom
+            body["max_completion_tokens"] = max_tokens + 1024
             body["reasoning_effort"] = "low"
+        else:
+            body["max_tokens"] = max_tokens
         return body
 
     def _post(self, body: dict[str, Any]) -> dict[str, Any]:
@@ -49,23 +49,30 @@ class GroqClient:
                     timeout=self._timeout,
                 )
             except httpx.HTTPError as exc:
-                raise LlmError(f"Groq request failed: {type(exc).__name__}") from exc
-            if resp.status_code == 429 and attempt < MAX_429_RETRIES:
-                time.sleep(_retry_after(resp))  # rate limited: wait as told (bounded), then retry
+                raise LlmError(f"{self.provider} request failed: {type(exc).__name__}") from exc
+            if resp.status_code in (429, 503) and attempt < MAX_429_RETRIES:
+                # rate limited / provider briefly overloaded: bounded wait, then retry
+                time.sleep(_retry_after(resp) if resp.status_code == 429 else 2.0 * (attempt + 1))
                 continue
             break
         if resp.status_code != 200:
             detail = ""
             try:  # the provider's error text describes the request shape, never our secrets
-                detail = str(resp.json().get("error", {}).get("message", ""))[:200]
+                err = resp.json()
+                err = err.get("error", err)
+                if isinstance(err, list) and err:  # Gemini's OpenAI layer wraps errors in a list
+                    err = err[0].get("error", err[0]) if isinstance(err[0], dict) else err[0]
+                detail = str(err.get("message", "") if isinstance(err, dict) else err)[:200]
             except (ValueError, AttributeError):
                 pass
-            raise LlmError(f"Groq returned HTTP {resp.status_code}: {detail}".rstrip(": "))
+            raise LlmError(
+                f"{self.provider} returned HTTP {resp.status_code}: {detail}".rstrip(": ")
+            )
         try:
             data = resp.json()
             assert isinstance(data["choices"][0]["message"], dict)
         except (ValueError, KeyError, IndexError, TypeError, AssertionError) as exc:
-            raise LlmError("Groq returned an unexpected response shape") from exc
+            raise LlmError(f"{self.provider} returned an unexpected response shape") from exc
         return data
 
     def complete(
@@ -78,7 +85,7 @@ class GroqClient:
             body["response_format"] = {"type": "json_object"}
         content = self._post(body)["choices"][0]["message"].get("content")
         if not isinstance(content, str) or not content.strip():
-            raise LlmError("Groq returned an empty completion")
+            raise LlmError(f"{self.provider} returned an empty completion")
         return content.strip()
 
     def chat(
@@ -97,16 +104,20 @@ class GroqClient:
         for raw in message.get("tool_calls") or []:
             try:
                 fn = raw["function"]
+                extra = raw.get("extra_content")
                 calls.append(
                     ToolCall(
-                        id=str(raw["id"]), name=str(fn["name"]), arguments=fn["arguments"] or "{}"
+                        id=str(raw["id"]),
+                        name=str(fn["name"]),
+                        arguments=fn["arguments"] or "{}",
+                        extra=extra if isinstance(extra, dict) else None,
                     )
                 )
             except (KeyError, TypeError) as exc:
-                raise LlmError("Groq returned a malformed tool call") from exc
+                raise LlmError(f"{self.provider} returned a malformed tool call") from exc
         content = message.get("content")
         if not calls and not (isinstance(content, str) and content.strip()):
-            raise LlmError("Groq returned an empty completion")
+            raise LlmError(f"{self.provider} returned an empty completion")
         return ChatTurn(
             content=content.strip() if isinstance(content, str) else None, tool_calls=calls
         )

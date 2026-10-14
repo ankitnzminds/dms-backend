@@ -86,13 +86,22 @@ class Settings(BaseSettings):
     documenso_webhook_secret: SecretStr | None = None
     signature_webhook_secret: SecretStr | None = None  # fake provider only
 
-    # --- AI assistance (Groq, OpenAI-compatible chat API) ---
-    ai_provider: Literal["auto", "none", "fake", "groq"] = "auto"
+    # --- AI assistance (Gemini or Groq; both OpenAI-compatible chat APIs) ---
+    ai_provider: Literal["auto", "none", "fake", "groq", "gemini"] = "auto"
     groq_api_key: SecretStr | None = None
     groq_model: str = "openai/gpt-oss-20b"
     groq_base_url: str = "https://api.groq.com/openai/v1"
+    gemini_api_key: SecretStr | None = None
+    gemini_model: str = "gemini-3.8-flash"
+    gemini_ocr_model: str = ""  # model for scanned-document transcription; empty = gemini_model
+    gemini_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai"
     ai_max_input_chars: int = 40_000
     ai_timeout_seconds: int = 60
+    # Transcribe scanned PDFs/images with Gemini when the file has no usable text layer
+    # (requires the Gemini provider). Documents in DLP-blocked classifications are never sent.
+    ai_ocr: bool = True
+    ai_ocr_max_bytes: int = 20 * 1024 * 1024
+    ai_ocr_timeout_seconds: int = 300  # a multi-page scan takes the model minutes to transcribe
 
     # --- agentic chat limits ---
     agent_max_steps: int = 8
@@ -163,6 +172,8 @@ class Settings(BaseSettings):
     def effective_ai_provider(self) -> str:
         if self.ai_provider != "auto":
             return self.ai_provider
+        if self.gemini_api_key:
+            return "gemini"
         return "groq" if self.groq_api_key else "none"
 
     @property

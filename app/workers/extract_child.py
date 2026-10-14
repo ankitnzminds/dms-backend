@@ -37,6 +37,7 @@ def main() -> int:
                 "engine": result.engine,
                 "error": result.error,
                 "thumbnail": str(result.thumbnail) if result.thumbnail else None,
+                "pages": result.pages,
             }
         )
     )

@@ -54,7 +54,7 @@ app/
   modules/         business logic per domain (authorization, folders, documents, uploads, sharing,
                    governance, processing, search, metadata, workflows, signatures, directory,
                    items (file manager), access_requests, chat (agent), ai, notifications, reports)
-  adapters/        storage, identity, malware, signatures (Documenso/fake), llm (Groq/fake), email, directory
+  adapters/        storage, identity, malware, signatures (Documenso/fake), llm (Gemini/Groq/fake), email, directory
   db/models/       SQLAlchemy models   migrations/  Alembic (hand-reviewed, RLS appended)
   workers/         outbox worker and handlers
 docs/              architecture, ADRs, requirements matrix, security, runbooks, operations
@@ -72,7 +72,7 @@ tests/             unit / integration / security (pytest on embedded PostgreSQL)
 | Configuration reference | `docs/operations/configuration.md` |
 | Performance | `docs/operations/performance.md` |
 | Runbooks (local dev, migrations, backup/restore, workers, Documenso, chatbot) | `docs/runbooks/` |
-| Documenso / Groq integrations | `docs/integrations/` |
+| Documenso / Gemini / Groq integrations | `docs/integrations/` |
 | Data dictionary (generated), ERD | `docs/database/` |
 | API contract | `docs/api/openapi.json` (regenerate after changing endpoints) |
 

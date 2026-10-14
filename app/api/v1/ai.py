@@ -1,4 +1,4 @@
-"""AI assistance (Groq): summary, Q&A and metadata suggestions for one document."""
+"""AI assistance (Gemini/Groq): summary, Q&A and metadata suggestions for one document."""
 
 from __future__ import annotations
 

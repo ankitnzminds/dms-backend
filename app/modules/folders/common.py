@@ -23,6 +23,21 @@ _SUBTREE_SQL = text(
     """
 )
 
+_LIVE_SUBTREE_SQL = text(
+    """
+    WITH RECURSIVE sub(id, depth) AS (
+      SELECT f.id, 0 FROM dms.folders f
+       WHERE f.id = :root AND f.organization_id = :org AND f.deleted_at IS NULL
+      UNION ALL
+      SELECT c.id, s.depth + 1
+        FROM sub s JOIN dms.folders c
+          ON c.parent_folder_id = s.id AND c.organization_id = :org AND c.deleted_at IS NULL
+       WHERE s.depth < 100
+    )
+    SELECT id FROM sub
+    """
+)
+
 _PATH_SQL = text(
     """
     WITH RECURSIVE up(id, parent_id, name, depth) AS (
@@ -43,6 +58,13 @@ def subtree_folder_ids(
 ) -> list[uuid.UUID]:
     """The folder and all its descendants (including already-deleted ones)."""
     return list(db.scalars(_SUBTREE_SQL, {"root": root_id, "org": organization_id}))
+
+
+def live_subtree_folder_ids(
+    db: Session, organization_id: uuid.UUID, root_id: uuid.UUID
+) -> list[uuid.UUID]:
+    """The folder and its descendants that are not in the recycle bin."""
+    return list(db.scalars(_LIVE_SUBTREE_SQL, {"root": root_id, "org": organization_id}))
 
 
 def plain_path(db: Session, organization_id: uuid.UUID, folder_id: uuid.UUID) -> str:

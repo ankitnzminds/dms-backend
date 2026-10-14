@@ -15,6 +15,9 @@ class ToolCall:
     id: str
     name: str
     arguments: str  # raw JSON text from the model - untrusted until validated
+    # Provider-specific payload that must be echoed back when the call is replayed (Gemini's
+    # ``extra_content.google.thought_signature``; the request is rejected without it).
+    extra: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)

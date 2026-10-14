@@ -13,5 +13,6 @@
   (≤ 20 s). Use a higher tier for real use.
 * Privacy: prompts contain authorized document passages. Documents in DLP-blocked classifications
   are never sent. Nothing is logged except provider error text.
+* Gemini: see `gemini.md` (same request shape; also transcribes scanned PDFs/images).
 * Replacing the provider: implement `LlmClient` (`complete`, `chat`) and register it in
   `adapters/llm/factory.py`; no service, schema or API change is required.

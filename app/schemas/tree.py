@@ -81,8 +81,10 @@ class TreeItem(ApiModel):
     name: str
     updated_at: datetime
     permissions: list[ActionName]
-    # document-only
+    # documents: size of the current version. Folders: total of the files the caller may see inside
+    # (subfolders included); null when it was not computed (very large folders).
     size_bytes: int | None = None
+    # document-only
     content_type: str | None = None
     status: str | None = None
     current_version_number: int | None = None

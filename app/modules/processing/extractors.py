@@ -42,6 +42,7 @@ class ExtractResult:
     engine: str | None = None
     error: str | None = None
     thumbnail: Path | None = field(default=None)
+    pages: int | None = None  # PDFs only: pages examined (lets the caller spot scanned files)
 
 
 def _clip(text: str, max_chars: int) -> tuple[str, bool]:
@@ -76,10 +77,14 @@ def extract_pdf(path: Path, max_chars: int, max_pages: int, ocr: OcrFn | None) -
         parts.append(chunk)
         total += len(chunk)
     result = _done("\n".join(parts), "pypdf", max_chars)
+    result.pages = len(parts)
     if result.status == "empty" and ocr is None:
         # Scanned PDF without a text layer: needs OCR, which is not configured.
         return ExtractResult(
-            "ocr_unavailable", engine="pypdf", error="no text layer; OCR not configured"
+            "ocr_unavailable",
+            engine="pypdf",
+            error="no text layer; OCR not configured",
+            pages=len(parts),
         )
     return result
 
